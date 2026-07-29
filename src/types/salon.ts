@@ -1,9 +1,16 @@
-export interface Salon {
+export interface SalonInfo {
   salonId: string;
   name: string;
+  tagline: string;
+  rating: number;
   address: string;
   phone: string;
-  isActive: boolean;
-  timezone: 'Asia/Kolkata';
-  createdAt: number;
+  about: string;
+}
+
+export interface ServiceItem {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  icon: string; // placeholder emoji until real icon set
 }

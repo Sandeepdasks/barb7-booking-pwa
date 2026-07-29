@@ -1,12 +1,14 @@
-import AppRouter from '@/app/router';
-import { AuthProvider } from '@/contexts/AuthContext';
-// import { ThemeProvider } from '@/contexts/ThemeContext';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { LandingPage } from './pages/LandingPage/LandingPage';
+import { BookingPage } from './pages/BookingPage/BookingPage';
 
-// ThemeProvider left commented — not part of the Authentication module.
 export default function App() {
   return (
-    <AuthProvider>
-      <AppRouter />
-    </AuthProvider>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/booking" element={<BookingPage />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
