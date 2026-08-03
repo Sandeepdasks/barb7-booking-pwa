@@ -1,30 +1,37 @@
-import { useEffect, useState } from 'react';
-import { fetchWorkingHours } from '../services/mockWorkingHoursService';
-import { WorkingHours } from '../types/workingHours';
+import { useMemo } from "react";
+import { WorkingHours, Weekday, DayHours } from "../types/salon";
+import { formatDisplayTimeRange } from "../utils/dateUtils";
 
-interface UseWorkingHoursResult {
-  workingHours: WorkingHours | null;
-  loading: boolean;
-  error: string | null;
+const WEEKDAYS: Weekday[] = [
+  "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+];
+
+export interface TodayStatus {
+  today: DayHours;
+  isOpenNow: boolean;
+  displayHours: string; // e.g. "9:00 AM – 9:00 PM"
 }
 
-export function useWorkingHours(salonId: string): UseWorkingHoursResult {
-  const [workingHours, setWorkingHours] = useState<WorkingHours | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+// NOTE: uses client Date only for display/status on this read-only landing page.
+// Real booking-window enforcement always happens server-side (Cloud Functions) per 01-Requirements.
+export function useWorkingHours(workingHours: WorkingHours): TodayStatus {
+  return useMemo(() => {
+    const now = new Date();
+    const dayKey = WEEKDAYS[now.getDay()];
+    const today = workingHours[dayKey];
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
+    const [openH, openM] = today.openTime.split(":").map(Number);
+    const [closeH, closeM] = today.closeTime.split(":").map(Number);
+    const minutesNow = now.getHours() * 60 + now.getMinutes();
+    const openMinutes = openH * 60 + openM;
+    const closeMinutes = closeH * 60 + closeM;
 
-    fetchWorkingHours(salonId)
-      .then((data) => { if (!cancelled) setWorkingHours(data); })
-      .catch(() => { if (!cancelled) setError('Could not load working hours.'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+    const isOpenNow = !today.isClosed && minutesNow >= openMinutes && minutesNow < closeMinutes;
 
-    return () => { cancelled = true; };
-  }, [salonId]);
-
-  return { workingHours, loading, error };
+    return {
+      today,
+      isOpenNow,
+      displayHours: formatDisplayTimeRange(today.openTime, today.closeTime),
+    };
+  }, [workingHours]);
 }

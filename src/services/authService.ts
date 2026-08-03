@@ -7,9 +7,9 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
-import type { UserProfile } from '@/types/user';
-import { ROLES } from '@/constants/roles';
+import { auth, db } from "../lib/firebase";
+import type { UserProfile } from "../types/user";
+import { ROLES } from "../constants/roles";
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -64,7 +64,7 @@ async function signInWithEmailPassword(email: string, password: string): Promise
   return getUserProfile(result.user.uid);
 }
 
-async function signOutUser(): Promise<void> {
+export async function signOutUser(): Promise<void> {
   await signOut(auth);
 }
 

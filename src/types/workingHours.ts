@@ -1,24 +1,29 @@
 export type DayKey =
-  | 'monday' | 'tuesday' | 'wednesday' | 'thursday'
-  | 'friday' | 'saturday' | 'sunday';
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
 
-export interface DayHours {
-  openTime: string;   // "09:00" (24h)
-  closeTime: string;  // "20:00" (24h)
+// Compatibility alias for older/newer generated files
+export type WeekdayKey = DayKey;
+
+export type SessionKey = "morning" | "afternoon" | "evening";
+
+export interface SessionWindow {
+  start: string;
+  end: string;
+}
+
+export interface DaySessions {
+  morning: SessionWindow;
+  afternoon: SessionWindow;
+  evening: SessionWindow;
   isClosed: boolean;
-  breakStart?: string | null; // reserved for future phase — unused
-  breakEnd?: string | null;   // reserved for future phase — unused
 }
 
-export interface WorkingHours {
-  salonId: string;
-  slotDurationMinutes: number; // salon-level, single value for entire salon
-  monday: DayHours;
-  tuesday: DayHours;
-  wednesday: DayHours;
-  thursday: DayHours;
-  friday: DayHours;
-  saturday: DayHours;
-  sunday: DayHours;
-  updatedAt: string; // ISO timestamp
-}
+export type WorkingHoursConfig = Record<DayKey, DaySessions> & {
+  baseSlotIntervalMinutes: number;
+};

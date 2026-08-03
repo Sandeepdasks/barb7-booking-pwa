@@ -1,18 +1,28 @@
-import { Navigate } from 'react-router-dom';
-import type { ReactNode } from 'react';
-import { useRequireRole } from '@/features/auth/hooks/useRequireRole';
-import type { UserRole } from '@/types/user';
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../../../contexts/AuthContext";
 
-interface Props {
-  allowed: UserRole[];
-  redirectTo: string;
-  children: ReactNode;
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowed?: string[];
+  redirectTo?: string;
 }
 
-export function ProtectedRoute({ allowed, redirectTo, children }: Props) {
-  const { authorized, loading } = useRequireRole(allowed);
+export function ProtectedRoute({
+  children,
+  allowed = [],
+  redirectTo = "/",
+}: ProtectedRouteProps) {
+  const { user } = useAuth();
 
-  if (loading) return <div className="text-center mt-16">Loading…</div>;
-  if (!authorized) return <Navigate to={redirectTo} replace />;
+  // Not logged in
+  if (!user) {
+    return <Navigate to={redirectTo} replace />;
+  }
+
+  // Role check (for future owner/admin support)
+  if (allowed.length > 0 && !allowed.includes(user.role)) {
+    return <Navigate to={redirectTo} replace />;
+  }
+
   return <>{children}</>;
 }

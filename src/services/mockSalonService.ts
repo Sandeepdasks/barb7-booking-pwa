@@ -1,30 +1,33 @@
-import { SalonInfo, ServiceItem } from '../types/salon';
+import { SalonProfile, WorkingHours } from "../types/salon";
 
-const MOCK_SALON: SalonInfo = {
-  salonId: 'barb7',
-  name: 'BARB7 UNISEX SALON',
-  tagline: 'Premium Grooming Experience',
-  rating: 4.9,
-  address: 'Vayanasala Junction, Kochi, Kerala',
-  phone: '+91 81293 45995',
-  about:
-    'BARB7 blends classic barbering with modern styling — hair, skin, and makeup services delivered by a team that treats every chair like the only chair.',
+// Mirrors Firestore doc: workingHours/{salonId}
+// Sunday IS a working day by default. Nothing here is hardcoded into components —
+// owner edits will replace this object 1:1 once Firestore reads land.
+export const mockWorkingHours: WorkingHours = {
+  monday:    { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
+  tuesday:   { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
+  wednesday: { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
+  thursday:  { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
+  friday:    { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
+  saturday:  { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
+  sunday:    { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
 };
 
-const MOCK_SERVICES: ServiceItem[] = [
-  { id: 'svc-haircut', name: 'Hair Cut', durationMinutes: 30, icon: '✂️' },
-  { id: 'svc-beard', name: 'Beard Trim', durationMinutes: 20, icon: '🪒' },
-  { id: 'svc-spa', name: 'Hair Spa', durationMinutes: 45, icon: '💆' },
-  { id: 'svc-colour', name: 'Hair Colour', durationMinutes: 60, icon: '🎨' },
-  { id: 'svc-facial', name: 'Facial', durationMinutes: 40, icon: '✨' },
-];
-
-export async function fetchSalonInfo(): Promise<SalonInfo> {
-  await new Promise((r) => setTimeout(r, 200));
-  return MOCK_SALON;
-}
-
-export async function fetchServices(): Promise<ServiceItem[]> {
-  await new Promise((r) => setTimeout(r, 200));
-  return MOCK_SERVICES;
-}
+// Mirrors Firestore doc: salons/{salonId}
+export const mockSalonProfile: SalonProfile = {
+  salonId: "barb7-vayanasala",
+  name: "BARB7 UNISEX SALON",
+  tagline: "Premium Grooming Experience",
+  rating: 4.9,
+  address: "Vayanasala Rd, Kochi, Kerala",
+  phone: "+91 81293 45995",
+  logoUrl: "/src/assets/logo.png",
+  coverImageUrl: "/src/assets/landing-cover.jpg",
+  services: [
+    { id: "hair-cut", name: "Hair Cut", icon: "Scissors", durationMinutes: 30 },
+    { id: "beard-trim", name: "Beard Trim", icon: "Zap", durationMinutes: 30 },
+    { id: "hair-spa", name: "Hair Spa", icon: "Droplet", durationMinutes: 60 },
+    { id: "hair-colour", name: "Hair Colour", icon: "Palette", durationMinutes: 120 },
+    { id: "facial", name: "Facial", icon: "Sparkles", durationMinutes: 90 },
+  ],
+};
