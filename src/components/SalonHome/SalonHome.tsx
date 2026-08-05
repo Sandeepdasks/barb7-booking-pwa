@@ -46,14 +46,14 @@ export function SalonHome({ salonId, salonName }: SalonHomeProps) {
           </div>
           <div>
             <h1 className="text-[#F5F1EA] text-xl font-bold tracking-wide uppercase">{salonName}</h1>
-            <p className="text-[#8B8F9C] text-xs tracking-widest uppercase">Hair · Skin · Make Up</p>
+            <p className="text-[#8B8F9C] text-[0.75rem] leading-[1.4rem] tracking-widest uppercase">Hair · Skin · Make Up</p>
           </div>
         </div>
 
         <div className="relative bg-[#F5F1EA] rounded-2xl overflow-hidden shadow-xl">
           <div className="px-6 pt-6 pb-5 flex items-start justify-between gap-3">
             <div>
-              <p className="text-[#8B8F9C] text-xs uppercase tracking-widest">Today</p>
+              <p className="text-[#8B8F9C] text-[0.75rem] leading-[1.4rem] uppercase tracking-widest">Today</p>
               <p className="text-[#1F2128] text-2xl font-bold font-mono mt-1">
                 {todayHours.isClosed
                   ? 'Closed'
@@ -61,7 +61,7 @@ export function SalonHome({ salonId, salonName }: SalonHomeProps) {
               </p>
             </div>
             <span
-              className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide whitespace-nowrap ${
+              className={`px-3 py-1 rounded-full text-[0.75rem] leading-[1.4rem] font-semibold uppercase tracking-wide whitespace-nowrap ${
                 status.isOpen ? 'bg-[#7FA895] text-[#1F2128]' : 'bg-[#C77B6B] text-[#F5F1EA]'
               }`}
             >
@@ -75,7 +75,7 @@ export function SalonHome({ salonId, salonName }: SalonHomeProps) {
           </div>
 
           <div className="px-6 py-5">
-            <p className="text-[#8B8F9C] text-xs uppercase tracking-widest mb-2">Working hours</p>
+            <p className="text-[#8B8F9C] text-[0.75rem] leading-[1.4rem] uppercase tracking-widest mb-2">Working hours</p>
             <ul className="space-y-1.5">
               {DAY_ORDER.map((day) => {
                 const hours = workingHours[day];
@@ -94,7 +94,7 @@ export function SalonHome({ salonId, salonName }: SalonHomeProps) {
           </div>
         </div>
 
-        <p className="text-[#8B8F9C] text-xs text-center mt-6">
+        <p className="text-[#8B8F9C] text-[0.75rem] leading-[1.4rem] text-center mt-6">
           Hours set by salon owner. Always shows latest schedule.
         </p>
       </div>

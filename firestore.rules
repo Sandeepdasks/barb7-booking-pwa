@@ -1,160 +1,47 @@
 rules_version = '2';
 
-// Production rules per 01-Requirements.md, 02-Features.md, 03-Database.md,
-// 04-APIs.md, and the finalized Phase-2/Phase-6 decisions:
-//   - blockedSlots is sole source of truth for owner blocks (no "blocked" status).
-//   - Booking mutations (create, slot-lock, 2-day window, overlap, cancellation
-//     window) are server-authoritative via Cloud Functions using the Admin SDK,
-//     which BYPASSES these rules entirely. These rules are the client-facing
-//     boundary + defense-in-depth, not where booking-integrity math happens.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ---------- helpers ----------
-    function isSignedIn() {
-      return request.auth != null;
+    // User profiles
+    match /users/{userId} {
+      allow read, write: if request.auth != null &&
+                         request.auth.uid == userId;
     }
 
-    function myProfile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    // Customer bookings
+    match /bookings/{bookingId} {
+
+      // A customer can read only their own bookings
+      allow read: if request.auth != null &&
+                  resource.data.customerId == request.auth.uid;
+
+      // A customer can create only bookings for themselves
+      allow create: if request.auth != null &&
+                    request.resource.data.customerId == request.auth.uid;
+
+      // A customer can update only their own booking
+      allow update: if request.auth != null &&
+                    resource.data.customerId == request.auth.uid;
+
+      // Prevent direct deletion from the client
+      allow delete: if false;
     }
 
-    function isAdmin() {
-      return isSignedIn() && myProfile().role == 'admin';
-    }
+    // Availability locks (PII-free)
+    match /slotLocks/{lockId} {
 
-    function isOwner() {
-      return isSignedIn() && myProfile().role == 'owner';
-    }
-
-    function isOwnerOfSalon(salonId) {
-      return isOwner() && myProfile().salonId == salonId;
-    }
-
-    function isCustomer() {
-      return isSignedIn() && myProfile().role == 'customer';
-    }
-
-    // ---------- users ----------
-    // Customer can create/update only their own profile.
-    // Owner/Admin profiles are provisioned by Admin (Phase 5, Admin SDK) —
-    // never self-service-created here.
-    match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-
-      // First-time Google sign-in creates this doc client-side (authService).
-      // uid must match the caller, role is locked to 'customer' (owner/admin
-      // profiles are Admin-provisioned, never self-created), and only the
-      // exact expected profile fields may be set — blocks a customer from
-      // sneaking in salonId or any other field for escalation purposes.
-      allow create: if isSignedIn()
-        && request.auth.uid == uid
-        && request.resource.data.uid == uid
-        && request.resource.data.role == 'customer'
-        && !('salonId' in request.resource.data)
-        && request.resource.data.keys().hasOnly(
-          ['uid', 'role', 'name', 'email', 'phone', 'authProviders', 'createdAt', 'lastLogin']
-        );
-
-      allow update: if isSignedIn()
-        && request.auth.uid == uid
-        && request.resource.data.uid == resource.data.uid
-        && request.resource.data.role == resource.data.role; // no self role-escalation
-
-      allow delete: if isAdmin();
-    }
-
-    // ---------- guestCustomers ----------
-    // Walk-in records — owner-of-salon only, per Database.md rationale
-    // (kept separate from users to avoid auth-identity conflation).
-    match /guestCustomers/{guestId} {
-      allow read: if isOwnerOfSalon(resource.data.salonId) || isAdmin();
-      allow create: if isOwnerOfSalon(request.resource.data.salonId) || isAdmin();
-      allow update: if isOwnerOfSalon(resource.data.salonId) || isAdmin();
-      allow delete: if isOwnerOfSalon(resource.data.salonId) || isAdmin();
-    }
-
-    // ---------- appointments ----------
-    match /appointments/{appointmentId} {
-      allow read: if isAdmin()
-        || (isCustomer() && resource.data.customerId == request.auth.uid)
-        || isOwnerOfSalon(resource.data.salonId);
-
-      // Real creation path is the booking Cloud Function (slot-lock, 2-day
-      // window, overlap check, server IST time) — Admin SDK bypasses this
-      // rule. Direct client creates are denied for everyone except Admin
-      // (console/manual correction use only).
-      allow create: if isAdmin();
-
-      // Owner: full manage within their own salon, salonId cannot be reassigned.
-      // Customer: cancel-only — may flip status confirmed -> cancelled and
-      // set cancelledAt, nothing else. (Real cancellation-window enforcement
-      // still happens in the cancelBooking Cloud Function; this is the
-      // client-write ceiling if that function is bypassed.)
-      allow update: if isAdmin()
-        || (
-          isOwnerOfSalon(resource.data.salonId)
-          && request.resource.data.salonId == resource.data.salonId
-        )
-        || (
-          isCustomer()
-          && resource.data.customerId == request.auth.uid
-          && resource.data.status == 'confirmed'
-          && request.resource.data.status == 'cancelled'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
-        );
-
-      allow delete: if isAdmin();
-    }
-
-    // ---------- workingHours ----------
-    // Doc ID == salonId. Public read (needed to compute customer availability).
-    match /workingHours/{salonId} {
+      // Anyone can read availability
       allow read: if true;
-      allow write: if isOwnerOfSalon(salonId) || isAdmin();
+
+      // Allow authenticated users to create/update/delete slot locks
+      // because the current app writes slotLocks directly from the client
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
     }
 
-    // ---------- holidays ----------
-    match /holidays/{holidayId} {
-      allow read: if true;
-      allow create: if isOwnerOfSalon(request.resource.data.salonId) || isAdmin();
-      allow update: if isOwnerOfSalon(resource.data.salonId) || isAdmin();
-      allow delete: if isOwnerOfSalon(resource.data.salonId) || isAdmin();
-    }
-
-    // ---------- blockedSlots ----------
-    // Sole source of truth for owner-blocked time (finalized decision) —
-    // public read so slot availability can be computed client-side too.
-    match /blockedSlots/{blockId} {
-      allow read: if true;
-      allow create: if isOwnerOfSalon(request.resource.data.salonId) || isAdmin();
-      allow update: if isOwnerOfSalon(resource.data.salonId) || isAdmin();
-      allow delete: if isOwnerOfSalon(resource.data.salonId) || isAdmin();
-    }
-
-    // ---------- settings ----------
-    // Doc ID == salonId. cancellationWindowMinutes etc. — public read for
-    // client-side UI messaging, owner/admin write only.
-    match /settings/{salonId} {
-      allow read: if true;
-      allow write: if isOwnerOfSalon(salonId) || isAdmin();
-    }
-
-    // ---------- salons ----------
-    match /salons/{salonId} {
-      allow read: if (resource.data.isActive == true) || isOwnerOfSalon(salonId) || isAdmin();
-      allow create: if isAdmin();
-      // Owner can edit own salon's details but cannot flip isActive —
-      // enable/disable is an Admin-only power per Admin Features.
-      allow update: if isAdmin()
-        || (
-          isOwnerOfSalon(salonId)
-          && request.resource.data.isActive == resource.data.isActive
-        );
-      allow delete: if isAdmin();
-    }
-
-    // ---------- default deny ----------
+    // Default deny
     match /{document=**} {
       allow read, write: if false;
     }

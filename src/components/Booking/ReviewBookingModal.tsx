@@ -73,7 +73,7 @@ export function ReviewBookingModal({
 
           <div className="mt-6 flex flex-col gap-5">
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#B8BCC8]">
+              <p className="mb-2 text-[0.75rem] leading-[1.4rem] font-semibold uppercase tracking-wide text-[#B8BCC8]">
                 Services
               </p>
               <ul className="flex flex-col gap-1.5">
@@ -90,7 +90,7 @@ export function ReviewBookingModal({
             </div>
 
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#B8BCC8]">
+              <p className="mb-2 text-[0.75rem] leading-[1.4rem] font-semibold uppercase tracking-wide text-[#B8BCC8]">
                 Customer
               </p>
               <div className="flex flex-col gap-1 text-sm">
@@ -100,12 +100,12 @@ export function ReviewBookingModal({
               </div>
             </div>
 
-            <p className="text-xs text-[#B8BCC8]">
+            <p className="text-[0.75rem] leading-[1.4rem] text-[#B8BCC8]">
               Please arrive 10 minutes before your appointment.
             </p>
 
             {errorMessage && (
-              <p className="text-xs leading-relaxed text-red-400">{errorMessage}</p>
+              <p className="text-[0.75rem] leading-[1.4rem] leading-relaxed text-red-400">{errorMessage}</p>
             )}
           </div>
         </div>

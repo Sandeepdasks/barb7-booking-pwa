@@ -1,33 +1,102 @@
-import { SalonProfile, WorkingHours } from "../types/salon";
+import type { SalonProfile, WorkingHours } from "../types/salon";
+import landingCover from "../assets/landing-cover.jpg";
 
 // Mirrors Firestore doc: workingHours/{salonId}
-// Sunday IS a working day by default. Nothing here is hardcoded into components —
-// owner edits will replace this object 1:1 once Firestore reads land.
+// Owner-approved BARB7 schedule
 export const mockWorkingHours: WorkingHours = {
-  monday:    { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
-  tuesday:   { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
-  wednesday: { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
-  thursday:  { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
-  friday:    { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
-  saturday:  { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
-  sunday:    { openTime: "09:00", closeTime: "21:00", isClosed: false, slotDurationMinutes: 30 },
+  monday: {
+    openTime: "09:30",
+    closeTime: "20:00",
+    isClosed: true,
+    slotDurationMinutes: 15,
+  },
+  tuesday: {
+    openTime: "09:30",
+    closeTime: "20:00",
+    isClosed: false,
+    slotDurationMinutes: 15,
+  },
+  wednesday: {
+    openTime: "09:30",
+    closeTime: "20:00",
+    isClosed: false,
+    slotDurationMinutes: 15,
+  },
+  thursday: {
+    openTime: "09:30",
+    closeTime: "20:00",
+    isClosed: false,
+    slotDurationMinutes: 15,
+  },
+  friday: {
+    openTime: "09:30",
+    closeTime: "20:00",
+    isClosed: false,
+    slotDurationMinutes: 15,
+  },
+  saturday: {
+    openTime: "09:30",
+    closeTime: "20:00",
+    isClosed: false,
+    slotDurationMinutes: 15,
+  },
+  sunday: {
+    openTime: "09:30",
+    closeTime: "20:00",
+    isClosed: false,
+    slotDurationMinutes: 15,
+  },
 };
 
 // Mirrors Firestore doc: salons/{salonId}
 export const mockSalonProfile: SalonProfile = {
   salonId: "barb7-vayanasala",
   name: "BARB7 UNISEX SALON",
-  tagline: "Premium Grooming Experience",
+  tagline: "Premium Grooming",
   rating: 4.9,
-  address: "Vayanasala Rd, Kochi, Kerala",
-  phone: "+91 81293 45995",
-  logoUrl: "/src/assets/logo.png",
-  coverImageUrl: "/src/assets/landing-cover.jpg",
+  address: "Vayanasala, Kakkanad, Kochi",
+  phone: "+91 88987 98987",
+
+  // Use the imported local asset so Vite bundles it correctly
+  logoUrl: "/logo.png", // replace with an imported logo later if you add one
+  coverImageUrl: landingCover,
+
   services: [
-    { id: "hair-cut", name: "Hair Cut", icon: "Scissors", durationMinutes: 30 },
-    { id: "beard-trim", name: "Beard Trim", icon: "Zap", durationMinutes: 30 },
-    { id: "hair-spa", name: "Hair Spa", icon: "Droplet", durationMinutes: 60 },
-    { id: "hair-colour", name: "Hair Colour", icon: "Palette", durationMinutes: 120 },
-    { id: "facial", name: "Facial", icon: "Sparkles", durationMinutes: 90 },
+    {
+      id: "hair-cut",
+      name: "Hair Cut",
+      icon: "Scissors",
+      durationMinutes: 30,
+    },
+    {
+      id: "hair-cut-beard",
+      name: "Hair Cut + Beard",
+      icon: "Crown",
+      durationMinutes: 45,
+    },
+    {
+      id: "beard-dressing",
+      name: "Beard Dressing",
+      icon: "Sparkles",
+      durationMinutes: 15,
+    },
+    {
+      id: "facial",
+      name: "Facial",
+      icon: "Palette",
+      durationMinutes: 90,
+    },
+    {
+      id: "face-clean-up",
+      name: "Face Clean Up",
+      icon: "Droplet",
+      durationMinutes: 30,
+    },
+    {
+      id: "d-tan",
+      name: "D-Tan",
+      icon: "Sun",
+      durationMinutes: 30,
+    },
   ],
 };

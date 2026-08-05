@@ -22,7 +22,7 @@ export function DateSelector({ options, selectedIndex, onSelect }: DateSelectorP
               isSelected ? 'bg-[#C9A278] text-[#1F2128]' : 'bg-[#3A3E4A] text-[#F5F1EA]'
             }`}
           >
-            <p className="text-xs uppercase tracking-wide font-semibold">{opt.label}</p>
+            <p className="text-[0.75rem] leading-[1.4rem] uppercase tracking-wide font-semibold">{opt.label}</p>
             <p className="text-sm mt-1 font-mono">
               {opt.date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
             </p>

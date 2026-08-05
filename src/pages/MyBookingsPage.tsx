@@ -148,7 +148,7 @@ export function MyBookingsPage() {
           <>
             <BookingTabs activeKey={activeTab} onChange={setActiveTab} />
 
-            {error && <p className="mb-3 text-xs text-red-400">{error}</p>}
+            {error && <p className="mb-3 text-[0.75rem] leading-[1.4rem] text-red-400">{error}</p>}
 
             {list.length === 0 ? (
               <EmptyBookingsState

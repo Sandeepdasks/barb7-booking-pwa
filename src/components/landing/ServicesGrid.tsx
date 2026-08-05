@@ -1,4 +1,4 @@
-import { Scissors, Zap, Droplet, Palette, Sparkles, type LucideIcon } from "lucide-react";
+import { Scissors, Zap, Droplet, Palette, Sparkles, Sun, Crown, type LucideIcon } from "lucide-react";
 import { Service } from "../../types/salon";
 
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -7,6 +7,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Droplet,
   Palette,
   Sparkles,
+  Sun,
+  Crown,
 };
 
 interface ServicesGridProps {

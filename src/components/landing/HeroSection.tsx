@@ -44,7 +44,7 @@ export function HeroSection({ salon, status, isAuthenticated, onLogout }: HeroSe
         {/* Hero content — lower-left, aligned to the shared container.
             Status chip now sits directly above the salon name, left-aligned. */}
         <div className="flex flex-col gap-2">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#1F2128]/80 px-3 py-1.5 text-xs font-semibold text-[#F5F1EA] shadow-lg backdrop-blur-md">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#1F2128]/80 px-3 py-1.5 text-[0.75rem] leading-[1.4rem] font-semibold text-[#F5F1EA] shadow-lg backdrop-blur-md">
             <span
               className="h-2 w-2 rounded-full"
               style={{ backgroundColor: status.isOpenNow ? "#22C55E" : "#EF4444" }}
@@ -56,7 +56,7 @@ export function HeroSection({ salon, status, isAuthenticated, onLogout }: HeroSe
             {salon.name}
           </h1>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#F5F1EA]/90">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.75rem] leading-[1.4rem] text-[#F5F1EA]/90">
             <span className="inline-flex items-center gap-1 rounded-full bg-[#1F2128]/60 px-2 py-1 backdrop-blur-sm">
               <Star size={12} className="fill-[#C9A278] text-[#C9A278]" />
               {salon.rating.toFixed(1)}

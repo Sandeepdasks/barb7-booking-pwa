@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { DateTabs } from "../../components/Booking/DateTabs";
@@ -10,7 +10,7 @@ import { ReviewBookingModal } from "../../components/Booking/ReviewBookingModal"
 import { useBookingAuthGate } from "../../components/Booking/BookingAuthGate";
 import { ResponsiveContainer } from "../../components/layout/ResponsiveContainer";
 import { getBookableDays, BookableDayKey, formatDisplayDate } from "../../utils/dateUtils";
-import { to12h, getSlotEndTime } from "../../utils/slotGenerator"; // to12h still needed for the slot grid itself, not the summary label
+import { to12h } from "../../utils/slotGenerator";
 import { getTotalDurationMinutes } from "../../utils/serviceDurationEngine";
 import { buildSessionSlots, isSlotSelectable } from "../../utils/bookingAvailability";
 import { useDateAvailability } from "../../hooks/useDateAvailability";
@@ -22,10 +22,11 @@ import { BookedService } from "../../types/bookingRecord";
 // ASSUMPTION (see BookingAuthGate.tsx) — adjust path if your AuthContext differs.
 import { useAuth } from "../../contexts/AuthContext";
 
-const SESSION_ORDER: SessionKey[] = ["morning", "afternoon", "evening"];
+// Afternoon removed: the salon's midday gap (2:00 PM–3:30 PM) is a lunch
+// break, not a bookable session — see services/mockWorkingHoursConfig.ts.
+const SESSION_ORDER: SessionKey[] = ["morning", "evening"];
 const SESSION_LABELS: Record<SessionKey, string> = {
   morning: "Morning",
-  afternoon: "Afternoon",
   evening: "Evening",
 };
 
@@ -37,20 +38,23 @@ export function BookingPage() {
   const [activeKey, setActiveKey] = useState<BookableDayKey>(days[0].key);
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [selectedTime, setSelectedTime] = useState<string | undefined>();
-  const { user } = useAuth();
+  const [slotLostMessage, setSlotLostMessage] = useState<string | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const { status: authStatus, errorMessage: authError, ensureAuthenticated } = useBookingAuthGate();
   const [modalStage, setModalStage] = useState<ModalStage>("none");
   const [pendingContact, setPendingContact] = useState<ContactDetailsSubmitPayload | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  
 
   const activeDay = days.find((d) => d.key === activeKey)!;
   const dayConfig = mockWorkingHoursConfig[activeDay.weekday];
   const baseSlotIntervalMinutes = mockWorkingHoursConfig.baseSlotIntervalMinutes;
 
-  // Live Firestore availability — survives refresh, updates across devices.
+  // Live availability, PII-free (see bookingService.ts) — updates instantly
+  // across tabs/devices, survives refresh (Firestore-backed, not memory).
   const { occupiedSlots, loading: availabilityLoading, error: availabilityError } =
-    useDateAvailability(mockSalonProfile.salonId, activeDay.dateKey, baseSlotIntervalMinutes);
+    useDateAvailability(mockSalonProfile.salonId, activeDay.dateKey);
 
   const selectedServices: BookedService[] = useMemo(
     () =>
@@ -80,8 +84,6 @@ export function BookingPage() {
   const timeLabel = selectedTime ? to12h(selectedTime) : "";
   const servicesLabel = selectedServices.map((s) => s.serviceName).join(", ");
 
-  // Changing date or services invalidates any chosen time — durations shift
-  // which starts are valid, so a stale selection could overflow closing time.
   const handleDateChange = (key: BookableDayKey) => {
     setActiveKey(key);
     setSelectedTime(undefined);
@@ -122,8 +124,47 @@ export function BookingPage() {
     );
   }, [selectedTime, sessionSlots]);
 
+  // MULTI-TAB SYNC (Priority 6): the live `occupiedSlots` listener means this
+  // effect fires the instant another tab/device/customer takes the slot the
+  // user currently has selected — clears it, drops out of any open modal, and
+  // shows a message, so Continue can never be clicked through to a stale
+  // selection and Confirm can never be submitted against a slot that's
+  // already gone.
+  useEffect(() => {
+    if (!selectedTime) return;
+    if (selectedSlotStillValid) return;
+
+    setSlotLostMessage("That time is no longer available. Please choose another.");
+    setSelectedTime(undefined);
+    if (modalStage !== "none") {
+      setModalStage("none");
+      setPendingContact(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSlotStillValid]);
+
+  // AUTH EDGE CASE (Priority 7): logging out in another tab while a booking
+  // modal is open here must not leave a modal live with a now-stale customer
+  // identity — close everything and send the user back to a safe state.
+  const wasAuthenticatedRef = useRef(false);
+  useEffect(() => {
+    if (user) {
+      wasAuthenticatedRef.current = true;
+      return;
+    }
+    if (wasAuthenticatedRef.current && modalStage !== "none") {
+      setModalStage("none");
+      setPendingContact(null);
+      setSubmitError("You've been signed out. Please sign in again to continue booking.");
+    }
+    wasAuthenticatedRef.current = false;
+  }, [user, modalStage]);
+
   const canContinue =
-    selectedServiceIds.length > 0 && selectedSlotStillValid && !availabilityLoading;
+    selectedServiceIds.length > 0 &&
+    selectedSlotStillValid &&
+    !availabilityLoading &&
+    !authLoading;
 
   const handleContinueClick = async () => {
     if (!canContinue) return;
@@ -134,6 +175,9 @@ export function BookingPage() {
     const authenticated = await ensureAuthenticated();
     if (!authenticated) return;
 
+    // Fresh idempotency key per NEW attempt — see utils/idempotency.ts. Not
+    // regenerated on a same-attempt retry (that would defeat the point).
+    setSlotLostMessage(null);
     setModalStage("contact");
   };
 
@@ -143,48 +187,61 @@ export function BookingPage() {
     setModalStage("review");
   };
 
-  const handleConfirmBooking = async () => {
-    if (!pendingContact || !selectedTime || !user) return;
+  const bookingEndTime = useMemo(() => {
+  if (!selectedTime) return "";
 
-    setSubmitting(true);
-    setSubmitError(null);
+  const [hours, minutes] = selectedTime.split(":").map(Number);
+  const total = hours * 60 + minutes + totalDurationMinutes;
 
-    try {
-      // Firestore transaction re-checks every required slot lock immediately
-      // before writing — this is what stops two devices booking the same time.
-      const booking = await createBooking({
-        salonId: mockSalonProfile.salonId,
-        salonName: mockSalonProfile.name,
-        customerId: user.uid,
-        customerName: pendingContact.customerName,
-        customerEmail: user.email ?? null,
-        customerPhone: pendingContact.customerPhone,
-        services: selectedServices,
-        totalDurationMinutes,
-        appointmentDate: activeDay.dateKey,
-        appointmentTime: selectedTime,
-        appointmentEndTime: getSlotEndTime(selectedTime, totalDurationMinutes),
-        baseSlotIntervalMinutes,
-      });
+  const endHours = Math.floor(total / 60);
+  const endMinutes = total % 60;
 
+  return `${String(endHours).padStart(2, "0")}:${String(endMinutes).padStart(2, "0")}`;
+}, [selectedTime, totalDurationMinutes]);
+
+
+ const handleConfirmBooking = async () => {
+  if (!pendingContact || !selectedTime) return;
+
+  try {
+    const booking = await createBooking({
+      salonId: mockSalonProfile.salonId,
+salonName: mockSalonProfile.name,
+
+      customerId: user!.uid,
+      customerName: pendingContact.customerName,
+      customerEmail: user?.email ?? null,
+      customerPhone: pendingContact.customerPhone,
+
+      services: selectedServices.map((service) => ({
+  serviceId: service.serviceId,
+  serviceName: service.serviceName,
+  durationMinutes: service.durationMinutes,
+})),
+
+      totalDurationMinutes,
+      appointmentDate: activeDay.dateKey,
+      appointmentTime: selectedTime,
+      appointmentEndTime: bookingEndTime,
+      baseSlotIntervalMinutes: mockWorkingHoursConfig.baseSlotIntervalMinutes,
+    });
+
+    setModalStage("none");
+    setPendingContact(null);
+    navigate("/booking-confirmed", { state: booking });
+  } catch (err) {
+    if (err instanceof SlotTakenError) {
+      setSubmitError(err.message);
+      setSelectedTime(undefined);
       setModalStage("none");
-      setPendingContact(null);
-      navigate("/booking-confirmed", { state: booking });
-    } catch (err) {
-      if (err instanceof SlotTakenError) {
-        // Lost the race — send them back to the grid, which the live listener
-        // has already updated to show the slot as booked.
-        setSubmitError(err.message);
-        setSelectedTime(undefined);
-        setModalStage("none");
-      } else {
-        console.error("Booking failed:", err);
-        setSubmitError("Something went wrong creating your booking. Please try again.");
-      }
-    } finally {
-      setSubmitting(false);
+    } else {
+      console.error("Booking creation failed:", err);
+      setSubmitError(
+        "Something went wrong creating your booking. Please try again."
+      );
     }
-  };
+  }
+};
 
   return (
     <div className="min-h-screen bg-[#1F2128] pb-28">
@@ -194,11 +251,12 @@ export function BookingPage() {
             type="button"
             onClick={() => navigate(-1)}
             className="flex items-center gap-1 text-sm font-medium text-[#B8BCC8]"
+            aria-label="Go back"
           >
             <ArrowLeft size={18} />
             Back
           </button>
-          <p className="mt-4 text-xs font-medium uppercase tracking-wide text-[#B8BCC8]">
+          <p className="mt-4 text-[0.75rem] leading-[1.4rem] font-medium uppercase tracking-wide text-[#B8BCC8]">
             BARB7 UNISEX SALON
           </p>
           <h1 className="mt-1 text-xl font-bold text-[#F5F1EA]">Book Appointment</h1>
@@ -221,35 +279,45 @@ export function BookingPage() {
               />
 
               {selectedServiceIds.length === 0 ? (
-                <p className="mt-2 text-sm text-[#B8BCC8]">
-                  Select at least one service to see available times.
-                </p>
-              ) : availabilityLoading ? (
-                <p className="mt-2 text-sm text-[#B8BCC8]">Loading available times…</p>
-              ) : (
-                sessionSlots.map(({ key, slots }) => (
-                  <SessionSection
-                    key={key}
-                    title={SESSION_LABELS[key]}
-                    slots={slots}
-                    selectedTime={selectedTime}
-                    onSelect={(time24) => {
-                      setSelectedTime(time24);
-                      setSubmitError(null);
-                    }}
-                  />
-                ))
-              )}
+  <p className="mt-2 text-sm text-[#B8BCC8]">
+    Select at least one service to see available times.
+  </p>
+) : availabilityLoading ? (
+  <p className="mt-4 text-sm text-[#B8BCC8]">Loading available time slots...</p>
+) : (
+  sessionSlots.map(({ key, slots }) => (
+    <SessionSection
+      key={key}
+      title={SESSION_LABELS[key]}
+      slots={slots}
+      selectedTime={selectedTime}
+      onSelect={(time24) => {
+        setSelectedTime(time24);
+        setSubmitError(null);
+        setSlotLostMessage(null);
+      }}
+    />
+  ))
+)}
             </>
           )}
 
-          {availabilityError && (
-            <p className="mt-2 text-xs text-red-400">{availabilityError}</p>
-          )}
-          {submitError && <p className="mt-2 text-xs text-red-400">{submitError}</p>}
-          {authStatus === "error" && authError && (
-            <p className="mt-2 text-xs text-red-400">{authError}</p>
-          )}
+          <div aria-live="polite">
+            {slotLostMessage && (
+              <p className="mt-2 text-[0.75rem] leading-[1.4rem] text-red-400">{slotLostMessage}</p>
+            )}
+            {availabilityError && (
+              <p className="mt-2 text-[0.75rem] leading-[1.4rem] text-red-400">{availabilityError}</p>
+            )}
+            {submitError && !["contact", "review"].includes(modalStage) && (
+  <div className="mt-2">
+    <p className="text-[0.75rem] leading-[1.4rem] text-red-400">{submitError}</p>
+  </div>
+)}
+            {authStatus === "error" && authError && (
+              <p className="mt-2 text-[0.75rem] leading-[1.4rem] text-red-400">{authError}</p>
+            )}
+          </div>
         </div>
       </ResponsiveContainer>
 
@@ -272,18 +340,18 @@ export function BookingPage() {
       />
 
       <ReviewBookingModal
-        open={modalStage === "review"}
-        salonName={mockSalonProfile.name}
-        dateLabel={dateLabel}
-        timeLabel={timeLabel}
-        email={user?.email ?? null}
-        services={selectedServices}
-        contact={pendingContact}
-        submitting={submitting}
-        errorMessage={submitError}
-        onClose={() => setModalStage("none")}
-        onConfirm={handleConfirmBooking}
-      />
+  open={modalStage === "review"}
+  salonName={mockSalonProfile.name}
+  dateLabel={dateLabel}
+  timeLabel={timeLabel}
+  email={user?.email ?? null}
+  services={selectedServices}
+  contact={pendingContact}
+  submitting={submitting}
+  errorMessage={submitError}
+  onClose={() => setModalStage("none")}
+  onConfirm={handleConfirmBooking}
+/>
     </div>
   );
 }

@@ -30,7 +30,7 @@ export function ServiceSelector({
           Select Services
         </h3>
         {totalDurationMinutes > 0 && (
-          <span className="text-xs font-medium text-[#C9A278]">
+          <span className="text-[0.75rem] leading-[1.4rem] font-medium text-[#C9A278]">
             {formatDuration(totalDurationMinutes)} total
           </span>
         )}

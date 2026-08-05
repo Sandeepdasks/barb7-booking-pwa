@@ -87,7 +87,7 @@ export function BookingConfirmedPage() {
 
         <div className="mt-7 w-full max-w-sm rounded-[20px] border border-[#C9A278]/40 bg-[#2E313C] p-5 text-left">
           <p className="text-sm font-bold text-[#F5F1EA]">{booking.salonName}</p>
-          <dl className="mt-3 space-y-2 text-xs">
+          <dl className="mt-3 space-y-2 text-[0.75rem] leading-[1.4rem]">
             <Row label="Date" value={formatDisplayDate(booking.appointmentDate)} />
             <Row
               label="Time"
