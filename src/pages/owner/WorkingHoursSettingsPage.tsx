@@ -1,21 +1,24 @@
-import {
-  Link,
-  useNavigate,
-} from 'react-router-dom';
+import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useOwnerAuth } from '@/contexts/OwnerAuthContext';
 import { useWorkingHours } from '@/hooks/owner/useWorkingHours';
 
 import { OwnerPageShell } from '@/components/owner/layout/OwnerPageShell';
 import { OwnerHeader } from '@/components/owner/layout/OwnerHeader';
+import { OwnerButton, StickyActionBar } from '@/components/owner/ui';
 
-import { WorkingHoursForm } from '@/components/owner/working-hours/WorkingHoursForm';
+import {
+  WorkingHoursForm,
+  type WorkingHoursFormHandle,
+} from '@/components/owner/working-hours/WorkingHoursForm';
 
 import type {
   WorkingHours as OwnerWorkingHours,
 } from '@/types/owner';
 
 import type {
+  SlotIntervalMinutes,
   WorkingHoursDraft,
 } from '@/types/workingHours.types';
 
@@ -23,7 +26,7 @@ import type {
    CONSTANTS
 ------------------------------------------------------------------- */
 
-const DEFAULT_SLOT_INTERVAL = 15 as const;
+const DEFAULT_SLOT_INTERVAL: SlotIntervalMinutes = 15;
 
 /* ------------------------------------------------------------------
    OWNER MODEL → FORM MODEL
@@ -34,77 +37,55 @@ function toWorkingHoursDraft(
 ): WorkingHoursDraft {
   return {
     monday: {
-      isClosed:
-        hours.monday.closed,
-      openTime:
-        hours.monday.start,
-      closeTime:
-        hours.monday.end,
+      isClosed: hours.monday.closed,
+      openTime: hours.monday.start,
+      closeTime: hours.monday.end,
     },
 
     tuesday: {
-      isClosed:
-        hours.tuesday.closed,
-      openTime:
-        hours.tuesday.start,
-      closeTime:
-        hours.tuesday.end,
+      isClosed: hours.tuesday.closed,
+      openTime: hours.tuesday.start,
+      closeTime: hours.tuesday.end,
     },
 
     wednesday: {
-      isClosed:
-        hours.wednesday.closed,
-      openTime:
-        hours.wednesday.start,
-      closeTime:
-        hours.wednesday.end,
+      isClosed: hours.wednesday.closed,
+      openTime: hours.wednesday.start,
+      closeTime: hours.wednesday.end,
     },
 
     thursday: {
-      isClosed:
-        hours.thursday.closed,
-      openTime:
-        hours.thursday.start,
-      closeTime:
-        hours.thursday.end,
+      isClosed: hours.thursday.closed,
+      openTime: hours.thursday.start,
+      closeTime: hours.thursday.end,
     },
 
     friday: {
-      isClosed:
-        hours.friday.closed,
-      openTime:
-        hours.friday.start,
-      closeTime:
-        hours.friday.end,
+      isClosed: hours.friday.closed,
+      openTime: hours.friday.start,
+      closeTime: hours.friday.end,
     },
 
     saturday: {
-      isClosed:
-        hours.saturday.closed,
-      openTime:
-        hours.saturday.start,
-      closeTime:
-        hours.saturday.end,
+      isClosed: hours.saturday.closed,
+      openTime: hours.saturday.start,
+      closeTime: hours.saturday.end,
     },
 
     sunday: {
-      isClosed:
-        hours.sunday.closed,
-      openTime:
-        hours.sunday.start,
-      closeTime:
-        hours.sunday.end,
+      isClosed: hours.sunday.closed,
+      openTime: hours.sunday.start,
+      closeTime: hours.sunday.end,
     },
 
     lunchBreak: {
-      start:
-        hours.breakStart,
-      end:
-        hours.breakEnd,
+      start: hours.breakStart,
+      end: hours.breakEnd,
     },
 
     slotIntervalMinutes:
-      DEFAULT_SLOT_INTERVAL,
+      (hours.slotIntervalMinutes ??
+        DEFAULT_SLOT_INTERVAL) as SlotIntervalMinutes,
   };
 }
 
@@ -120,73 +101,52 @@ function fromWorkingHoursDraft(
 > {
   return {
     monday: {
-      start:
-        draft.monday.openTime,
-      end:
-        draft.monday.closeTime,
-      closed:
-        draft.monday.isClosed,
+      start: draft.monday.openTime,
+      end: draft.monday.closeTime,
+      closed: draft.monday.isClosed,
     },
 
     tuesday: {
-      start:
-        draft.tuesday.openTime,
-      end:
-        draft.tuesday.closeTime,
-      closed:
-        draft.tuesday.isClosed,
+      start: draft.tuesday.openTime,
+      end: draft.tuesday.closeTime,
+      closed: draft.tuesday.isClosed,
     },
 
     wednesday: {
-      start:
-        draft.wednesday.openTime,
-      end:
-        draft.wednesday.closeTime,
-      closed:
-        draft.wednesday.isClosed,
+      start: draft.wednesday.openTime,
+      end: draft.wednesday.closeTime,
+      closed: draft.wednesday.isClosed,
     },
 
     thursday: {
-      start:
-        draft.thursday.openTime,
-      end:
-        draft.thursday.closeTime,
-      closed:
-        draft.thursday.isClosed,
+      start: draft.thursday.openTime,
+      end: draft.thursday.closeTime,
+      closed: draft.thursday.isClosed,
     },
 
     friday: {
-      start:
-        draft.friday.openTime,
-      end:
-        draft.friday.closeTime,
-      closed:
-        draft.friday.isClosed,
+      start: draft.friday.openTime,
+      end: draft.friday.closeTime,
+      closed: draft.friday.isClosed,
     },
 
     saturday: {
-      start:
-        draft.saturday.openTime,
-      end:
-        draft.saturday.closeTime,
-      closed:
-        draft.saturday.isClosed,
+      start: draft.saturday.openTime,
+      end: draft.saturday.closeTime,
+      closed: draft.saturday.isClosed,
     },
 
     sunday: {
-      start:
-        draft.sunday.openTime,
-      end:
-        draft.sunday.closeTime,
-      closed:
-        draft.sunday.isClosed,
+      start: draft.sunday.openTime,
+      end: draft.sunday.closeTime,
+      closed: draft.sunday.isClosed,
     },
 
-    breakStart:
-      draft.lunchBreak.start,
+    breakStart: draft.lunchBreak.start,
+    breakEnd: draft.lunchBreak.end,
 
-    breakEnd:
-      draft.lunchBreak.end,
+    slotIntervalMinutes:
+      draft.slotIntervalMinutes,
   };
 }
 
@@ -212,6 +172,16 @@ export function WorkingHoursSettingsPage() {
     ownerProfile?.salonId
   );
 
+  const formRef =
+    useRef<WorkingHoursFormHandle>(
+      null
+    );
+
+  const [
+    dirty,
+    setDirty,
+  ] = useState(false);
+
   const initialDraft =
     hours
       ? toWorkingHoursDraft(
@@ -227,7 +197,9 @@ export function WorkingHoursSettingsPage() {
         draft
       );
 
-    await save(converted);
+    await save(
+      converted
+    );
   }
 
   return (
@@ -240,15 +212,32 @@ export function WorkingHoursSettingsPage() {
           }
         />
       }
+      footer={
+        !loading &&
+        !error &&
+        initialDraft ? (
+          <StickyActionBar>
+            <OwnerButton
+              variant="primary"
+              fullWidth
+              disabled={
+                !dirty ||
+                saving
+              }
+              loading={
+                saving
+              }
+              onClick={() =>
+                formRef.current?.triggerSave()
+              }
+            >
+              Save Changes
+            </OwnerButton>
+          </StickyActionBar>
+        ) : undefined
+      }
     >
       <div className="px-4 pt-4">
-        <Link
-          to="/owner/settings/special-closures"
-          className="mb-4 block w-full rounded-xl border border-[#C8A06B]/50 py-2.5 text-center text-sm font-semibold text-[#C8A06B]"
-        >
-          Manage Special Closures
-        </Link>
-
         {loading && (
           <p className="text-sm text-[#6E7482]">
             Loading…
@@ -266,14 +255,17 @@ export function WorkingHoursSettingsPage() {
           !error &&
           initialDraft && (
             <WorkingHoursForm
+              ref={
+                formRef
+              }
               initial={
                 initialDraft
               }
-              saving={
-                saving
-              }
               onSave={
                 handleSave
+              }
+              onDirtyChange={
+                setDirty
               }
             />
           )}

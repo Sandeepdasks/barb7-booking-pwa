@@ -13,21 +13,31 @@ service cloud.firestore {
 // alongside the workingHours rule from the Milestone-2 delivery.
 // Same ASSUMED role/salonId check pattern — adjust to match your actual rules.
 
-match /specialClosures/{closureId} {
-  // Public read — customer app needs this to resolve availability, same
-  // reasoning as workingHours (booking screen may be viewed pre-login).
+// Special Closures / Holidays
+//
+// Owner Special Closures UI currently stores one-off closures
+// inside the `holidays` collection with:
+// type = "oneoff"
+//
+// Customer booking availability may need to read these before login.
+match /holidays/{holidayId} {
+
+  // Customer app can read closures.
   allow read: if true;
 
-  // Only the owner of this closure's salon can write. closureId is
-  // `{salonId}_{date}` so we check the resource/request data's own
-  // salonId field rather than parsing the doc ID.
-  allow create: if request.auth != null
-    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner'
-    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == request.resource.data.salonId;
+  // Owner can create a closure only for their own salon.
+  allow create: if request.auth != null &&
+                exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner" &&
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId ==
+                  request.resource.data.salonId;
 
-  allow update, delete: if request.auth != null
-    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner'
-    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == resource.data.salonId;
+  // Owner can update/delete only closures belonging to their salon.
+  allow update, delete: if request.auth != null &&
+                        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner" &&
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId ==
+                          resource.data.salonId;
 }
 
 
@@ -96,6 +106,42 @@ match /specialClosures/{closureId} {
                    exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner" &&
                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == salonId;
+    }
+
+        // Appointments — current Owner Schedule / Add Booking collection
+    match /appointments/{appointmentId} {
+
+      // Customer can read their own appointment
+      allow read: if request.auth != null &&
+                  resource.data.customerId == request.auth.uid;
+
+      // Customer can create an appointment for themselves
+      allow create: if request.auth != null &&
+                    request.resource.data.customerId == request.auth.uid;
+
+      // Customer can update their own appointment
+      allow update: if request.auth != null &&
+                    resource.data.customerId == request.auth.uid;
+
+      // Owner can read appointments belonging to their salon
+      allow read: if request.auth != null &&
+                  exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                  get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner" &&
+                  get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == resource.data.salonId;
+
+      // Owner can create appointments for their salon
+      allow create: if request.auth != null &&
+                    exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner" &&
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == request.resource.data.salonId;
+
+      // Owner can update appointments belonging to their salon
+      allow update: if request.auth != null &&
+                    exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner" &&
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == resource.data.salonId;
+
+      allow delete: if false;
     }
 
     // Default deny

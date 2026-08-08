@@ -1,9 +1,11 @@
 import {
   useEffect,
+  useMemo,
   useRef,
 } from 'react';
 
 import {
+  CalendarOff,
   CheckCircle2,
   Lock,
 } from 'lucide-react';
@@ -22,6 +24,7 @@ import {
 import type {
   Appointment,
   BlockedEventGroup,
+  SpecialClosure,
   WorkingHoursDay,
 } from '@/types/owner';
 
@@ -43,12 +46,6 @@ const TIMELINE_TOP_PADDING =
 const TIMELINE_BOTTOM_PADDING =
   34;
 
-/*
- * Header + date navigator area.
- *
- * Calendar itself will fill from under the navigator
- * to the bottom of the mobile viewport.
- */
 const CALENDAR_TOP_OFFSET =
   154;
 
@@ -187,7 +184,6 @@ function CurrentTimeLine({
       }}
     >
       <div className="h-2 w-2 -translate-x-1/2 rounded-full bg-[#E5484D]" />
-
       <div className="h-px flex-1 bg-[#E5484D]" />
     </div>
   );
@@ -255,12 +251,9 @@ function AppointmentBlock({
       style={{
         top,
         height,
-
         left:
           ROW_LABEL_WIDTH,
-
         right: 4,
-
         paddingTop:
           compact ? 3 : 6,
       }}
@@ -360,12 +353,9 @@ function BlockedBlock({
       style={{
         top,
         height,
-
         left:
           ROW_LABEL_WIDTH,
-
         right: 4,
-
         paddingTop:
           compact ? 3 : 6,
       }}
@@ -392,6 +382,155 @@ function BlockedBlock({
         </div>
       )}
     </button>
+  );
+}
+
+/* ------------------------------------------------------------------
+   SPECIAL CLOSURE
+------------------------------------------------------------------- */
+
+function SpecialClosureBlock({
+  closure,
+  gridStart,
+  gridEnd,
+}: {
+  closure: SpecialClosure;
+  gridStart: string;
+  gridEnd: string;
+}) {
+  if (
+    closure.allDay ||
+    !closure.startTime ||
+    !closure.endTime
+  ) {
+    return null;
+  }
+
+  const closureStartMinutes =
+    parseHHMM(
+      closure.startTime
+    );
+
+  const closureEndMinutes =
+    parseHHMM(
+      closure.endTime
+    );
+
+  const gridStartMinutes =
+    parseHHMM(
+      gridStart
+    );
+
+  const gridEndMinutes =
+    parseHHMM(
+      gridEnd
+    );
+
+  if (
+    closureEndMinutes <=
+    closureStartMinutes
+  ) {
+    return null;
+  }
+
+  if (
+    closureEndMinutes <=
+      gridStartMinutes ||
+    closureStartMinutes >=
+      gridEndMinutes
+  ) {
+    return null;
+  }
+
+  const visibleStart =
+    Math.max(
+      closureStartMinutes,
+      gridStartMinutes
+    );
+
+  const visibleEnd =
+    Math.min(
+      closureEndMinutes,
+      gridEndMinutes
+    );
+
+  const durationMins =
+    visibleEnd -
+    visibleStart;
+
+  if (
+    durationMins <= 0
+  ) {
+    return null;
+  }
+
+  const actualStart =
+    minutesToHHMM(
+      visibleStart
+    );
+
+  const actualEnd =
+    minutesToHHMM(
+      visibleEnd
+    );
+
+  const { top, height } =
+    getEventGeometry(
+      gridStart,
+      actualStart,
+      durationMins
+    );
+
+  const compact =
+    height < 48;
+
+  return (
+    <div
+      className={[
+        'pointer-events-none absolute z-10 overflow-hidden rounded-lg border',
+        'border-[#C8A06B]/50 bg-[#C8A06B]/15 px-2.5',
+      ].join(' ')}
+      style={{
+        top,
+        height,
+        left:
+          ROW_LABEL_WIDTH,
+        right: 4,
+        paddingTop:
+          compact ? 4 : 8,
+      }}
+    >
+      <div className="flex items-center gap-1.5">
+        <CalendarOff
+          size={
+            compact ? 12 : 14
+          }
+          className="shrink-0 text-[#C8A06B]"
+        />
+
+        <span className="truncate text-[12px] font-semibold text-[#C8A06B]">
+          Special Closure
+        </span>
+      </div>
+
+      {!compact &&
+        closure.label && (
+          <div className="mt-1 truncate text-[12px] text-[#F5F5F5]">
+            {
+              closure.label
+            }
+          </div>
+        )}
+
+      {height >= 66 && (
+        <div className="mt-0.5 truncate text-[11px] text-[#A7AAB4]">
+          {formatRange12h(
+            actualStart,
+            actualEnd
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -430,10 +569,6 @@ function LunchBlock({
       gridEnd
     );
 
-  /*
-   * Don't render a lunch period outside
-   * actual salon working hours.
-   */
   if (
     breakEndMinutes <=
       breakStartMinutes ||
@@ -484,10 +619,8 @@ function LunchBlock({
       style={{
         top,
         height,
-
         left:
           ROW_LABEL_WIDTH,
-
         right: 4,
       }}
     >
@@ -519,6 +652,7 @@ export function CalendarTimeline({
   breakEnd,
   appointments,
   blockedGroups,
+  specialClosures = [],
   isToday,
   onSelectAppointment,
   onSelectBlockedGroup,
@@ -534,6 +668,9 @@ export function CalendarTimeline({
 
   blockedGroups:
     BlockedEventGroup[];
+
+  specialClosures?:
+    SpecialClosure[];
 
   isToday: boolean;
 
@@ -573,6 +710,54 @@ export function CalendarTimeline({
     );
 
   /* ----------------------------------------------------------------
+     FULL DAY CLOSURE
+  ---------------------------------------------------------------- */
+
+  const fullDayClosure =
+    useMemo(
+      () =>
+        specialClosures.find(
+          (closure) =>
+            closure.allDay
+        ) ?? null,
+      [
+        specialClosures,
+      ]
+    );
+
+  /* ----------------------------------------------------------------
+     PARTIAL CLOSURES
+  ---------------------------------------------------------------- */
+
+  const partialClosures =
+    useMemo(
+      () =>
+        specialClosures
+          .filter(
+            (closure) =>
+              !closure.allDay &&
+              !!closure.startTime &&
+              !!closure.endTime
+          )
+          .sort(
+            (
+              a,
+              b
+            ) =>
+              (
+                a.startTime ??
+                ''
+              ).localeCompare(
+                b.startTime ??
+                ''
+              )
+          ),
+      [
+        specialClosures,
+      ]
+    );
+
+  /* ----------------------------------------------------------------
      RESET AUTO SCROLL
   ---------------------------------------------------------------- */
 
@@ -586,14 +771,15 @@ export function CalendarTimeline({
   ]);
 
   /* ----------------------------------------------------------------
-     AUTO SCROLL TO CURRENT TIME
+     AUTO SCROLL
   ---------------------------------------------------------------- */
 
   useEffect(() => {
     if (
       !isToday ||
       hasAutoScrolled.current ||
-      !scrollRef.current
+      !scrollRef.current ||
+      !!fullDayClosure
     ) {
       return;
     }
@@ -612,8 +798,10 @@ export function CalendarTimeline({
       );
 
     if (
-      now < openMinutes ||
-      now > closeMinutes
+      now <
+        openMinutes ||
+      now >
+        closeMinutes
     ) {
       return;
     }
@@ -621,20 +809,26 @@ export function CalendarTimeline({
     const { top } =
       getEventGeometry(
         gridStart,
-        minutesToHHMM(now),
+        minutesToHHMM(
+          now
+        ),
         0
       );
 
-    scrollRef.current.scrollTo({
-      top: Math.max(
-        top +
-          TIMELINE_TOP_PADDING -
-          90,
-        0
-      ),
+    scrollRef.current.scrollTo(
+      {
+        top:
+          Math.max(
+            top +
+              TIMELINE_TOP_PADDING -
+              90,
+            0
+          ),
 
-      behavior: 'auto',
-    });
+        behavior:
+          'auto',
+      }
+    );
 
     hasAutoScrolled.current =
       true;
@@ -642,16 +836,17 @@ export function CalendarTimeline({
     isToday,
     gridStart,
     gridEnd,
+    fullDayClosure,
   ]);
 
   /* ----------------------------------------------------------------
-     CLOSED
+     WEEKLY CLOSED DAY
   ---------------------------------------------------------------- */
 
   if (isClosed) {
     return (
       <div
-        className="flex items-center justify-center rounded-2xl border border-dashed border-[#2B3240] text-[14px] text-[#6E7482]"
+        className="flex items-center justify-center rounded-2xl border border-dashed border-[#2B3240] px-6 text-center text-[14px] text-[#6E7482]"
         style={{
           height: `calc(100dvh - ${CALENDAR_TOP_OFFSET}px)`,
         }}
@@ -662,12 +857,52 @@ export function CalendarTimeline({
   }
 
   /* ----------------------------------------------------------------
+     FULL-DAY SPECIAL CLOSURE
+  ---------------------------------------------------------------- */
+
+  if (fullDayClosure) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#C8A06B]/40 bg-[#C8A06B]/5 px-6 text-center"
+        style={{
+          height: `calc(100dvh - ${CALENDAR_TOP_OFFSET}px)`,
+        }}
+      >
+        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#C8A06B]/10">
+          <CalendarOff
+            size={20}
+            className="text-[#C8A06B]"
+          />
+        </div>
+
+        <p className="mt-3 text-[14px] font-semibold text-[#F5F5F5]">
+          Special Closure
+        </p>
+
+        {fullDayClosure.label && (
+          <p className="mt-1 max-w-[240px] text-[12px] leading-5 text-[#A7AAB4]">
+            {
+              fullDayClosure.label
+            }
+          </p>
+        )}
+
+        <p className="mt-2 text-[11px] text-[#6E7482]">
+          Closed all day
+        </p>
+      </div>
+    );
+  }
+
+  /* ----------------------------------------------------------------
      TIMELINE
   ---------------------------------------------------------------- */
 
   return (
     <div
-      ref={scrollRef}
+      ref={
+        scrollRef
+      }
       className={[
         'relative w-full overflow-y-auto overscroll-contain',
         'rounded-2xl border border-[#2B3240] bg-[#0B0D12]',
@@ -679,9 +914,6 @@ export function CalendarTimeline({
           'touch',
       }}
     >
-      {/*
-       * Long content inside fixed viewport.
-       */}
       <div
         className="relative w-full"
         style={{
@@ -691,9 +923,6 @@ export function CalendarTimeline({
             TIMELINE_BOTTOM_PADDING,
         }}
       >
-        {/*
-         * Actual timeline shifted down by 24px.
-         */}
         <div
           className="absolute left-0 right-0"
           style={{
@@ -704,6 +933,8 @@ export function CalendarTimeline({
               gridHeight,
           }}
         >
+          {/* TIME GRID */}
+
           <TimeGridLines
             gridStart={
               gridStart
@@ -712,6 +943,8 @@ export function CalendarTimeline({
               gridEnd
             }
           />
+
+          {/* LUNCH */}
 
           {breakStart &&
             breakEnd && (
@@ -730,6 +963,8 @@ export function CalendarTimeline({
                 }
               />
             )}
+
+          {/* APPOINTMENTS */}
 
           {appointments.map(
             (appointment) => (
@@ -752,6 +987,8 @@ export function CalendarTimeline({
             )
           )}
 
+          {/* OWNER BLOCKS */}
+
           {blockedGroups.map(
             (group) => (
               <BlockedBlock
@@ -760,7 +997,9 @@ export function CalendarTimeline({
                     '|'
                   )
                 }
-                group={group}
+                group={
+                  group
+                }
                 gridStart={
                   gridStart
                 }
@@ -772,6 +1011,29 @@ export function CalendarTimeline({
               />
             )
           )}
+
+          {/* MULTIPLE SPECIAL CLOSURES */}
+
+          {partialClosures.map(
+            (closure) => (
+              <SpecialClosureBlock
+                key={
+                  closure.closureId
+                }
+                closure={
+                  closure
+                }
+                gridStart={
+                  gridStart
+                }
+                gridEnd={
+                  gridEnd
+                }
+              />
+            )
+          )}
+
+          {/* CURRENT TIME */}
 
           {isToday && (
             <CurrentTimeLine

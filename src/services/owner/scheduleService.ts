@@ -58,10 +58,40 @@ export function subscribeAppointmentsForDate(
     where('date', '==', date),
     orderBy('time', 'asc')
   );
-  return onSnapshot(q, (snap) => {
-    const all = snap.docs.map((d) => ({ appointmentId: d.id, ...d.data() } as Appointment));
-    cb(all.filter((a) => OPERATIONAL_APPOINTMENT_STATUSES.includes(a.status)));
-  });
+
+  return onSnapshot(
+    q,
+
+    (snap) => {
+      const all = snap.docs.map(
+        (d) =>
+          ({
+            appointmentId: d.id,
+            ...d.data(),
+          } as Appointment)
+      );
+
+      cb(
+        all.filter((appointment) =>
+          OPERATIONAL_APPOINTMENT_STATUSES.includes(
+            appointment.status
+          )
+        )
+      );
+    },
+
+    (error) => {
+      console.error(
+        'APPOINTMENTS LISTENER FAILED:',
+        {
+          salonId,
+          date,
+          code: error.code,
+          message: error.message,
+        }
+      );
+    }
+  );
 }
 
 // Returns EVERY slotLock for the date, both types — callers filter for their own purpose
@@ -72,10 +102,39 @@ export function subscribeSlotLocksForDate(
   date: string,
   cb: (locks: SlotLock[]) => void
 ): Unsubscribe {
-  const q = query(collection(db, 'slotLocks'), where('salonId', '==', salonId), where('date', '==', date));
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map((d) => ({ lockId: d.id, ...d.data() } as SlotLock)));
-  });
+  const q = query(
+    collection(db, 'slotLocks'),
+    where('salonId', '==', salonId),
+    where('date', '==', date)
+  );
+
+  return onSnapshot(
+    q,
+
+    (snap) => {
+      cb(
+        snap.docs.map(
+          (d) =>
+            ({
+              lockId: d.id,
+              ...d.data(),
+            } as SlotLock)
+        )
+      );
+    },
+
+    (error) => {
+      console.error(
+        'SLOT LOCKS LISTENER FAILED:',
+        {
+          salonId,
+          date,
+          code: error.code,
+          message: error.message,
+        }
+      );
+    }
+  );
 }
 
 // --- Internal helpers ---------------------------------------------------

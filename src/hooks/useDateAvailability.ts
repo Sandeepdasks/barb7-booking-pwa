@@ -44,6 +44,13 @@ export function useDateAvailability(
           }
         });
 
+        console.log("CUSTOMER AVAILABILITY DEBUG", {
+        salonId,
+        dateKey,
+        firestoreDocs: snapshot.size,
+        occupiedSlots: Array.from(occupied),
+      });
+
         setOccupiedSlots(occupied);
         setLoading(false);
       },

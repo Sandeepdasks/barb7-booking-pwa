@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Bell, CalendarDays, Clock3, CircleCheck, Settings as SettingsIcon, Plus } from 'lucide-react';
+import { CalendarDays, Clock3, CircleCheck, Settings as SettingsIcon, Plus } from 'lucide-react';
 import { useOwnerAuth } from '@/contexts/OwnerAuthContext';
 import { useDashboardStats } from '@/hooks/owner/useDashboardStats';
 import { OwnerPageShell } from '@/components/owner/layout/OwnerPageShell';
@@ -34,16 +34,16 @@ export function OwnerDashboardPage() {
       header={
         <OwnerHeader
           title="BARB7"
-          right={
-            <button
-              type="button"
-              aria-label="Notifications"
-              onClick={() => navigate('/owner/notifications')}
-              className="flex h-11 w-11 items-center justify-center rounded-full text-[#A7AAB4] transition-colors duration-150 hover:bg-[#1C2230] active:bg-[#1C2230]"
-            >
-              <Bell size={ICON_SIZE} strokeWidth={ICON_STROKE} />
-            </button>
-          }
+          //right={
+            //<button
+            //  type="button"
+            //  aria-label="Notifications"
+            //  onClick={() => navigate('/owner/notifications')}
+            //  className="flex h-11 w-11 items-center justify-center rounded-full text-[#A7AAB4] transition-colors duration-150 hover:bg-[#1C2230] active:bg-[#1C2230]"
+            //>
+            //  <Bell size={ICON_SIZE} strokeWidth={ICON_STROKE} />
+            //</button>
+          //}
         />
       }
     >

@@ -112,6 +112,11 @@ export interface WorkingHours {
   sunday: WorkingHoursDay;
   breakStart: string; // HH:mm
   breakEnd: string; // HH:mm
+  // Optional (2026-08-08): the customer-booking slot interval, in minutes. Optional/additive so
+  // existing consumers (OwnerSchedulePage, OwnerAddBookingPage, CalendarTimeline) that don't
+  // reference it are completely unaffected. Firestore may already contain this field even
+  // though it wasn't modeled here — this just lets the Working Hours page read/write it typed.
+  slotIntervalMinutes?: number;
   updatedAt: unknown;
 }
 

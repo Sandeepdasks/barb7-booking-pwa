@@ -1,20 +1,58 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import {
+  useState,
+} from 'react';
 
-import { useOwnerAuth } from '@/contexts/OwnerAuthContext';
-import { useSchedule } from '@/hooks/owner/useSchedule';
-import { useWorkingHours } from '@/hooks/owner/useWorkingHours';
+import {
+  useNavigate,
+} from 'react-router-dom';
 
-import { OwnerPageShell } from '@/components/owner/layout/OwnerPageShell';
-import { OwnerHeader } from '@/components/owner/layout/OwnerHeader';
-import { DateNavigator } from '@/components/owner/schedule/ScheduleParts';
-import { CalendarTimeline } from '@/components/owner/schedule/CalendarTimeline';
+import {
+  useOwnerAuth,
+} from '@/contexts/OwnerAuthContext';
 
-import { BookingDetailsSheet } from '@/components/owner/booking/BookingDetailsSheet';
-import { BlockedSlotDetailsSheet } from '@/components/owner/booking/BlockedSlotDetailsSheet';
-import { CancelBlockModal } from '@/components/owner/booking/CancelBlockModal';
+import {
+  useSchedule,
+} from '@/hooks/owner/useSchedule';
 
-import { OwnerSpinner } from '@/components/owner/ui';
+import {
+  useWorkingHours,
+} from '@/hooks/owner/useWorkingHours';
+
+import {
+  useClosureForDate,
+} from '@/hooks/useClosureForDate';
+
+import {
+  OwnerPageShell,
+} from '@/components/owner/layout/OwnerPageShell';
+
+import {
+  OwnerHeader,
+} from '@/components/owner/layout/OwnerHeader';
+
+import {
+  DateNavigator,
+} from '@/components/owner/schedule/ScheduleParts';
+
+import {
+  CalendarTimeline,
+} from '@/components/owner/schedule/CalendarTimeline';
+
+import {
+  BookingDetailsSheet,
+} from '@/components/owner/booking/BookingDetailsSheet';
+
+import {
+  BlockedSlotDetailsSheet,
+} from '@/components/owner/booking/BlockedSlotDetailsSheet';
+
+import {
+  CancelBlockModal,
+} from '@/components/owner/booking/CancelBlockModal';
+
+import {
+  OwnerSpinner,
+} from '@/components/owner/ui';
 
 import {
   todayIST,
@@ -30,26 +68,25 @@ import {
 import type {
   Appointment,
   BlockedEventGroup,
+  SpecialClosure as OwnerSpecialClosure,
 } from '@/types/owner';
 
 /* ------------------------------------------------------------------
    DATE SHIFT
 ------------------------------------------------------------------- */
 
-/**
- * UTC-safe date movement.
- *
- * Prevents:
- * - left arrow jumping 2 days
- * - right arrow appearing not to work
- * - IST / UTC date shifting
- */
 function shiftDate(
   date: string,
   days: number
 ): string {
-  const [year, month, day] =
-    date.split('-').map(Number);
+  const [
+    year,
+    month,
+    day,
+  ] =
+    date
+      .split('-')
+      .map(Number);
 
   const currentDate =
     new Date(
@@ -74,19 +111,26 @@ function shiftDate(
    DATE LABEL
 ------------------------------------------------------------------- */
 
-function formatDateLabel(
+function formatScheduleDate(
   date: string
 ): string {
-  const [year, month, day] =
-    date.split('-').map(Number);
+  const [
+    year,
+    month,
+    day,
+  ] =
+    date
+      .split('-')
+      .map(Number);
 
-  const value = new Date(
-    Date.UTC(
-      year,
-      month - 1,
-      day
-    )
-  );
+  const value =
+    new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day
+      )
+    );
 
   return value.toLocaleDateString(
     'en-IN',
@@ -104,46 +148,134 @@ function formatDateLabel(
 ------------------------------------------------------------------- */
 
 export function OwnerSchedulePage() {
-  const { ownerProfile } =
+  const {
+    ownerProfile,
+  } =
     useOwnerAuth();
 
   const navigate =
     useNavigate();
 
-  const [date, setDate] =
-    useState(todayIST());
+  const [
+    date,
+    setDate,
+  ] =
+    useState(
+      todayIST()
+    );
+
+  /* ----------------------------------------------------------------
+     SCHEDULE DATA
+  ---------------------------------------------------------------- */
 
   const {
     appointments,
     blockedGroups,
-    loading,
-  } = useSchedule(
-    ownerProfile?.salonId,
-    date
-  );
+    loading:
+      scheduleLoading,
+  } =
+    useSchedule(
+      ownerProfile?.salonId,
+      date
+    );
+
+  /* ----------------------------------------------------------------
+     WORKING HOURS
+  ---------------------------------------------------------------- */
 
   const {
     hours,
-    loading: hoursLoading,
-  } = useWorkingHours(
-    ownerProfile?.salonId
-  );
+    loading:
+      workingHoursLoading,
+  } =
+    useWorkingHours(
+      ownerProfile?.salonId
+    );
+
+  /* ----------------------------------------------------------------
+     SPECIAL CLOSURES
+  ---------------------------------------------------------------- */
+
+  const {
+    closures,
+    loading:
+      closureLoading,
+  } =
+    useClosureForDate(
+      ownerProfile?.salonId ?? '',
+      date
+    );
+
+  /*
+   * Customer-side closure model:
+   *
+   * {
+   *   id
+   *   type: 'full_day' | 'partial_day'
+   *   reason
+   * }
+   *
+   * CalendarTimeline currently uses the owner-side model:
+   *
+   * {
+   *   closureId
+   *   allDay
+   *   label
+   * }
+   *
+   * Convert the full array here.
+   */
+  const ownerSpecialClosures:
+    OwnerSpecialClosure[] =
+    closures.map(
+      (closure) => ({
+        closureId:
+          closure.id,
+
+        salonId:
+          closure.salonId,
+
+        date:
+          closure.date,
+
+        label:
+          closure.reason ??
+          '',
+
+        allDay:
+          closure.type ===
+          'full_day',
+
+        startTime:
+          closure.startTime,
+
+        endTime:
+          closure.endTime,
+
+        createdAt:
+          closure.createdAt,
+      })
+    );
+
+  /* ----------------------------------------------------------------
+     SELECTED ITEMS
+  ---------------------------------------------------------------- */
 
   const [
     selectedAppt,
     setSelectedAppt,
   ] =
-    useState<Appointment | null>(
-      null
-    );
+    useState<
+      Appointment | null
+    >(null);
 
   const [
     selectedGroup,
     setSelectedGroup,
   ] =
-    useState<BlockedEventGroup | null>(
-      null
-    );
+    useState<
+      BlockedEventGroup | null
+    >(null);
 
   const [
     confirmCancel,
@@ -151,24 +283,43 @@ export function OwnerSchedulePage() {
   ] =
     useState(false);
 
-  const [busy, setBusy] =
+  const [
+    busy,
+    setBusy,
+  ] =
     useState(false);
 
+  /* ----------------------------------------------------------------
+     DERIVED DATE DATA
+  ---------------------------------------------------------------- */
+
   const dateLabel =
-    formatDateLabel(date);
+    formatScheduleDate(
+      date
+    );
 
   const isToday =
-    date === todayIST();
+    date ===
+    todayIST();
 
   const weekday =
-    weekdayForDate(date);
+    weekdayForDate(
+      date
+    );
 
   const workingHoursDay =
-    hours?.[weekday] ??
+    hours?.[
+      weekday
+    ] ??
     null;
 
+  const loading =
+    scheduleLoading ||
+    workingHoursLoading ||
+    closureLoading;
+
   /* ----------------------------------------------------------------
-     MARK COMPLETED
+     APPOINTMENT ACTIONS
   ---------------------------------------------------------------- */
 
   async function handleMarkCompleted() {
@@ -184,7 +335,9 @@ export function OwnerSchedulePage() {
         'completed'
       );
 
-      setSelectedAppt(null);
+      setSelectedAppt(
+        null
+      );
     } finally {
       setBusy(false);
     }
@@ -210,11 +363,13 @@ export function OwnerSchedulePage() {
         ownerProfile.uid
       );
 
-      /*
-       * Stay on the exact same date.
-       */
-      setConfirmCancel(false);
-      setSelectedAppt(null);
+      setConfirmCancel(
+        false
+      );
+
+      setSelectedAppt(
+        null
+      );
     } finally {
       setBusy(false);
     }
@@ -236,14 +391,16 @@ export function OwnerSchedulePage() {
         selectedGroup
       );
 
-      setSelectedGroup(null);
+      setSelectedGroup(
+        null
+      );
     } finally {
       setBusy(false);
     }
   }
 
   /* ----------------------------------------------------------------
-     ADD BOOKING FROM BLOCK
+     OWNER BLOCK → BOOKING
   ---------------------------------------------------------------- */
 
   function handleAddBookingFromBlocked() {
@@ -288,121 +445,155 @@ export function OwnerSchedulePage() {
       header={
         <OwnerHeader
           title="Today"
-          subtitle={dateLabel}
+          subtitle={
+            dateLabel
+          }
           onBack={() =>
-            navigate(
-              '/owner.html'
-            )
+            navigate(-1)
           }
         />
       }
     >
-      {/*
-       * Prevent the entire schedule page from becoming
-       * the scroll container.
-       */}
-      <div className="flex min-h-0 flex-col">
-        {/* DATE NAVIGATION */}
-
-        <div className="shrink-0">
-          <DateNavigator
-            label={dateLabel}
-            onPrev={() =>
-              setDate(
-                (currentDate) =>
-                  shiftDate(
-                    currentDate,
-                    -1
-                  )
+      <DateNavigator
+        label={
+          dateLabel
+        }
+        onPrev={() =>
+          setDate(
+            (
+              current
+            ) =>
+              shiftDate(
+                current,
+                -1
               )
-            }
-            onNext={() =>
-              setDate(
-                (currentDate) =>
-                  shiftDate(
-                    currentDate,
-                    1
-                  )
+          )
+        }
+        onNext={() =>
+          setDate(
+            (
+              current
+            ) =>
+              shiftDate(
+                current,
+                1
               )
-            }
-          />
-        </div>
+          )
+        }
+      />
 
-        {/* CALENDAR */}
+      {loading ||
+      !workingHoursDay ? (
+        <OwnerSpinner />
+      ) : (
+        <CalendarTimeline
+          workingHoursDay={
+            workingHoursDay
+          }
 
-        {loading ||
-        hoursLoading ||
-        !workingHoursDay ? (
-          <div className="flex min-h-[300px] items-center justify-center">
-            <OwnerSpinner />
-          </div>
-        ) : (
-          <CalendarTimeline
-            workingHoursDay={
-              workingHoursDay
-            }
-            breakStart={
-              hours?.breakStart
-            }
-            breakEnd={
-              hours?.breakEnd
-            }
-            appointments={
-              appointments
-            }
-            blockedGroups={
-              blockedGroups
-            }
-            isToday={isToday}
-            onSelectAppointment={
-              setSelectedAppt
-            }
-            onSelectBlockedGroup={
-              setSelectedGroup
-            }
-          />
-        )}
-      </div>
+          breakStart={
+            hours?.breakStart
+          }
 
-      {/* APPOINTMENT DETAILS */}
+          breakEnd={
+            hours?.breakEnd
+          }
+
+          appointments={
+            appointments
+          }
+
+          blockedGroups={
+            blockedGroups
+          }
+
+          /*
+           * IMPORTANT:
+           * CalendarTimeline must now accept an ARRAY.
+           */
+          specialClosures={
+            ownerSpecialClosures
+          }
+
+          isToday={
+            isToday
+          }
+
+          onSelectAppointment={
+            setSelectedAppt
+          }
+
+          onSelectBlockedGroup={
+            setSelectedGroup
+          }
+        />
+      )}
+
+      {/* ------------------------------------------------------------
+          APPOINTMENT DETAILS
+      ------------------------------------------------------------- */}
 
       <BookingDetailsSheet
         appointment={
           selectedAppt
         }
-        open={!!selectedAppt}
+        open={
+          !!selectedAppt
+        }
         onClose={() =>
-          setSelectedAppt(null)
+          setSelectedAppt(
+            null
+          )
         }
         onMarkCompleted={
           handleMarkCompleted
         }
         onCancelAndBlock={() =>
-          setConfirmCancel(true)
+          setConfirmCancel(
+            true
+          )
         }
-        updating={busy}
+        updating={
+          busy
+        }
       />
 
-      {/* CANCEL CONFIRMATION */}
+      {/* ------------------------------------------------------------
+          CANCEL + BLOCK
+      ------------------------------------------------------------- */}
 
       <CancelBlockModal
-        open={confirmCancel}
-        confirming={busy}
+        open={
+          confirmCancel
+        }
+        confirming={
+          busy
+        }
         onConfirm={
           handleConfirmCancelAndBlock
         }
         onCancel={() =>
-          setConfirmCancel(false)
+          setConfirmCancel(
+            false
+          )
         }
       />
 
-      {/* OWNER BLOCK DETAILS */}
+      {/* ------------------------------------------------------------
+          OWNER BLOCK DETAILS
+      ------------------------------------------------------------- */}
 
       <BlockedSlotDetailsSheet
-        group={selectedGroup}
-        open={!!selectedGroup}
+        group={
+          selectedGroup
+        }
+        open={
+          !!selectedGroup
+        }
         onClose={() =>
-          setSelectedGroup(null)
+          setSelectedGroup(
+            null
+          )
         }
         onRelease={
           handleRelease
@@ -410,7 +601,9 @@ export function OwnerSchedulePage() {
         onAddBooking={
           handleAddBookingFromBlocked
         }
-        releasing={busy}
+        releasing={
+          busy
+        }
       />
     </OwnerPageShell>
   );

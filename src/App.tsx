@@ -10,8 +10,10 @@ import { OwnerLoginPage } from "./pages/owner/OwnerLoginPage";
 import { OwnerDashboardPage } from "./pages/owner/OwnerDashboardPage";
 import { OwnerSchedulePage } from "./pages/owner/OwnerSchedulePage";
 import WorkingHoursSettingsPage from "./pages/owner/WorkingHoursSettingsPage";
+import { OwnerSpecialClosuresPage } from '@/pages/owner/OwnerSpecialClosuresPage';
 import { OwnerAddBookingPage } from "./pages/owner/OwnerAddBookingPage";
 import { OwnerSettingsPage } from "./pages/owner/OwnerSettingsPage";
+import { OwnerAddEditClosurePage } from './pages/owner/OwnerAddEditClosurePage';
 
 import { AuthProvider } from "./contexts/AuthContext";
 import {
@@ -115,6 +117,31 @@ export default function App() {
           element={
             <OwnerProtectedRoute>
               <WorkingHoursSettingsPage />
+            </OwnerProtectedRoute>
+          }
+        />
+        <Route
+          path="/owner/settings/special-closures"
+          element={
+            <OwnerProtectedRoute>
+              <OwnerSpecialClosuresPage />
+            </OwnerProtectedRoute>
+          }
+        />
+        <Route
+          path="/owner/settings/special-closures/new"
+          element={
+            <OwnerProtectedRoute>
+              <OwnerAddEditClosurePage />
+            </OwnerProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/owner/settings/special-closures/:closureId/edit"
+          element={
+            <OwnerProtectedRoute>
+              <OwnerAddEditClosurePage />
             </OwnerProtectedRoute>
           }
         />

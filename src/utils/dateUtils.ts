@@ -11,98 +11,376 @@ const WEEKDAYS: WeekdayKey[] = [
   "saturday",
 ];
 
-// Single source of truth for weekday/month names (title case). Every other
-// casing (e.g. the uppercase vertical date cards) derives from these via
-// .toUpperCase() so they can never drift out of sync with each other.
-const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTH_NAMES = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+const WEEKDAY_NAMES = [
+  "Sun",
+  "Mon",
+  "Tue",
+  "Wed",
+  "Thu",
+  "Fri",
+  "Sat",
 ];
 
-export type BookableDayKey = "today" | "tomorrow" | "dayAfter";
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+export type BookableDayKey =
+  | "today"
+  | "tomorrow"
+  | "dayAfter";
 
 export interface BookableDay {
   key: BookableDayKey;
   date: Date;
-  dateKey: string; // YYYY-MM-DD
+  dateKey: string;
   weekday: WeekdayKey;
-  // Display-only fields for the BookMyShow-style VERTICAL date card
-  // (components/booking/DateTabs.tsx) — that's a distinct 3-line layout, not
-  // the "Sun, 02 Aug" inline format used everywhere else, so it keeps its own
-  // split fields. Values are sourced from the same WEEKDAY_NAMES/MONTH_NAMES
-  // arrays as formatDisplayDate below, just uppercased, so the two never show
-  // different weekday/month names for the same date.
-  weekdayShort: string; // "THU"
-  dayNum: string; // "30"
-  monthShort: string; // "JUL"
+  weekdayShort: string;
+  dayNum: string;
+  monthShort: string;
 }
 
-function toDateKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
+/* ------------------------------------------------------------------
+   IST DATE HELPERS
+------------------------------------------------------------------- */
+
+/**
+ * Returns today's calendar date in India, regardless of the
+ * browser/device timezone.
+ *
+ * Example:
+ *
+ * At 12:15 AM IST on 09 Aug:
+ *
+ * UTC may still be 08 Aug,
+ * but this correctly returns:
+ *
+ * {
+ *   year: 2026,
+ *   month: 8,
+ *   day: 9
+ * }
+ */
+function getISTDateParts(
+  value: Date = new Date()
+): {
+  year: number;
+  month: number;
+  day: number;
+} {
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone: "Asia/Kolkata",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }
+    ).formatToParts(value);
+
+  const year = Number(
+    parts.find(
+      (part) =>
+        part.type === "year"
+    )?.value
+  );
+
+  const month = Number(
+    parts.find(
+      (part) =>
+        part.type === "month"
+    )?.value
+  );
+
+  const day = Number(
+    parts.find(
+      (part) =>
+        part.type === "day"
+    )?.value
+  );
+
+  return {
+    year,
+    month,
+    day,
+  };
 }
 
-// Customer booking window is fixed at today/tomorrow/day-after (01-Requirements
-// maxBookingDaysAhead = 2). Display-only — Cloud Functions re-validate this
-// server-side against IST, never trusting client device time.
-export function getBookableDays(now: Date = new Date()): BookableDay[] {
-  const keys: BookableDayKey[] = ["today", "tomorrow", "dayAfter"];
+/**
+ * Convert a UTC-midnight calendar Date into YYYY-MM-DD.
+ *
+ * The Date objects created by getBookableDays() are deliberately
+ * UTC-midnight dates used only for safe calendar arithmetic.
+ */
+function toDateKey(
+  date: Date
+): string {
+  const year =
+    date.getUTCFullYear();
 
-  return keys.map((key, offset) => {
-    const date = new Date(now);
-    date.setDate(date.getDate() + offset);
-    return {
+  const month =
+    date.getUTCMonth() + 1;
+
+  const day =
+    date.getUTCDate();
+
+  return `${year}-${String(
+    month
+  ).padStart(
+    2,
+    "0"
+  )}-${String(
+    day
+  ).padStart(
+    2,
+    "0"
+  )}`;
+}
+
+/* ------------------------------------------------------------------
+   BOOKABLE DAYS
+------------------------------------------------------------------- */
+
+/**
+ * Customer booking window:
+ *
+ * today
+ * tomorrow
+ * day-after-tomorrow
+ *
+ * IMPORTANT:
+ * All calendar calculations are based on IST.
+ *
+ * We intentionally avoid:
+ *
+ * date.toISOString().slice(0, 10)
+ *
+ * on a locally-created Date, because around midnight IST that can
+ * return the PREVIOUS UTC calendar date.
+ */
+export function getBookableDays(
+  now: Date = new Date()
+): BookableDay[] {
+  const keys:
+    BookableDayKey[] = [
+      "today",
+      "tomorrow",
+      "dayAfter",
+    ];
+
+  const {
+    year,
+    month,
+    day,
+  } =
+    getISTDateParts(
+      now
+    );
+
+  /*
+   * UTC midnight is used only as a safe calendar container.
+   *
+   * It prevents browser timezone differences from changing the
+   * weekday/date while we increment days.
+   */
+  const baseDate =
+    new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day
+      )
+    );
+
+  return keys.map(
+    (
       key,
-      date,
-      dateKey: toDateKey(date),
-      weekday: WEEKDAYS[date.getDay()],
-      weekdayShort: WEEKDAY_NAMES[date.getDay()].toUpperCase(),
-      dayNum: String(date.getDate()).padStart(2, "0"),
-      monthShort: MONTH_NAMES[date.getMonth()].toUpperCase(),
-    };
-  });
+      offset
+    ) => {
+      const date =
+        new Date(
+          baseDate
+        );
+
+      date.setUTCDate(
+        date.getUTCDate() +
+          offset
+      );
+
+      const weekdayIndex =
+        date.getUTCDay();
+
+      const monthIndex =
+        date.getUTCMonth();
+
+      const dayNumber =
+        date.getUTCDate();
+
+      return {
+        key,
+
+        date,
+
+        dateKey:
+          toDateKey(
+            date
+          ),
+
+        weekday:
+          WEEKDAYS[
+            weekdayIndex
+          ],
+
+        weekdayShort:
+          WEEKDAY_NAMES[
+            weekdayIndex
+          ].toUpperCase(),
+
+        dayNum:
+          String(
+            dayNumber
+          ).padStart(
+            2,
+            "0"
+          ),
+
+        monthShort:
+          MONTH_NAMES[
+            monthIndex
+          ].toUpperCase(),
+      };
+    }
+  );
 }
 
-// ---------------------------------------------------------------------------
-// SHARED DISPLAY FORMATTERS — the only place booking dates/times are turned
-// into user-facing strings. Every screen, popup, card, toast, and the email
-// template import from here (or re-export it, see formatDisplayTime) instead
-// of formatting dates/times themselves. Storage format is untouched by any of
-// this: Firestore keeps YYYY-MM-DD / 24h HH:mm exactly as before — these
-// functions only run at render/send time.
-// ---------------------------------------------------------------------------
+/* ------------------------------------------------------------------
+   SHARED DISPLAY FORMATTERS
+------------------------------------------------------------------- */
 
-// IST is a fixed UTC+5:30 offset with no daylight saving — safe to hardcode.
-const IST_OFFSET_MINUTES = 5 * 60 + 30;
+const IST_OFFSET_MINUTES =
+  5 * 60 + 30;
 
-// Absolute epoch ms for a YYYY-MM-DD + HH:mm pair, interpreted as IST — NOT
-// the viewer's local timezone. Because the result is an absolute instant, a
-// direct comparison against Date.now() is correct no matter what timezone the
-// customer's device is set to. Used for the Upcoming/Past cutoff below.
-export function toIstEpochMs(dateKey: string, time24: string): number {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const [h, min] = time24.split(":").map(Number);
-  return Date.UTC(y, m - 1, d, h, min) - IST_OFFSET_MINUTES * 60000;
+/**
+ * Convert YYYY-MM-DD + HH:mm, interpreted as IST,
+ * into an absolute epoch timestamp.
+ */
+export function toIstEpochMs(
+  dateKey: string,
+  time24: string
+): number {
+  const [
+    year,
+    month,
+    day,
+  ] =
+    dateKey
+      .split("-")
+      .map(Number);
+
+  const [
+    hours,
+    minutes,
+  ] =
+    time24
+      .split(":")
+      .map(Number);
+
+  return (
+    Date.UTC(
+      year,
+      month - 1,
+      day,
+      hours,
+      minutes
+    ) -
+    IST_OFFSET_MINUTES *
+      60000
+  );
 }
 
-// "Sun, 02 Aug" — the one date format used everywhere in the customer app.
-// Weekday is computed via Date.UTC rather than local Date parsing: a plain
-// Y-M-D string fed through `new Date(y, m-1, d)` is parsed in the BROWSER's
-// local timezone, which can land on the wrong calendar day (and therefore the
-// wrong weekday name) for viewers west of IST. Date.UTC sidesteps that.
-export function formatDisplayDate(dateKey: string): string {
-  const [y, m, d] = dateKey.split("-").map(Number);
-  const weekday = WEEKDAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
-  const month = MONTH_NAMES[m - 1];
-  return `${weekday}, ${String(d).padStart(2, "0")} ${month}`;
+/**
+ * Example:
+ *
+ * 2026-08-09
+ *
+ * ->
+ *
+ * Sun, 09 Aug
+ */
+export function formatDisplayDate(
+  dateKey: string
+): string {
+  const [
+    year,
+    month,
+    day,
+  ] =
+    dateKey
+      .split("-")
+      .map(Number);
+
+  const weekdayIndex =
+    new Date(
+      Date.UTC(
+        year,
+        month - 1,
+        day
+      )
+    ).getUTCDay();
+
+  const weekday =
+    WEEKDAY_NAMES[
+      weekdayIndex
+    ];
+
+  const monthName =
+    MONTH_NAMES[
+      month - 1
+    ];
+
+  return `${weekday}, ${String(
+    day
+  ).padStart(
+    2,
+    "0"
+  )} ${monthName}`;
 }
 
-// "9:30 AM" — re-exported (not reimplemented) from slotGenerator.ts, which
-// already needed this exact format for slot-chip labels. Keeping one
-// implementation means the grid and every other screen can never disagree.
-export { to12h as formatDisplayTime };
+/**
+ * Re-export the existing shared 12-hour formatter.
+ */
+export {
+  to12h as formatDisplayTime,
+};
 
-// "9:30 AM – 10:00 AM" — en dash, per spec.
-export function formatDisplayTimeRange(start24: string, end24: string): string {
-  return `${to12h(start24)} – ${to12h(end24)}`;
+/**
+ * Example:
+ *
+ * 09:30 – 10:00
+ *
+ * ->
+ *
+ * 9:30 AM – 10:00 AM
+ */
+export function formatDisplayTimeRange(
+  start24: string,
+  end24: string
+): string {
+  return `${to12h(
+    start24
+  )} – ${to12h(
+    end24
+  )}`;
 }

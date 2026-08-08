@@ -1,247 +1,1077 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { DateTabs } from "../../components/Booking/DateTabs";
-import { ServiceSelector } from "../../components/Booking/ServiceSelector";
-import { SessionSection } from "../../components/Booking/SessionSection";
-import { StickyContinueCTA } from "../../components/Booking/StickyContinueCTA";
-import { ContactDetailsModal, ContactDetailsSubmitPayload } from "../../components/Booking/ContactDetailsModal";
-import { ReviewBookingModal } from "../../components/Booking/ReviewBookingModal";
-import { useBookingAuthGate } from "../../components/Booking/BookingAuthGate";
-import { ResponsiveContainer } from "../../components/layout/ResponsiveContainer";
-import { getBookableDays, BookableDayKey, formatDisplayDate } from "../../utils/dateUtils";
-import { to12h } from "../../utils/slotGenerator";
-import { getTotalDurationMinutes } from "../../utils/serviceDurationEngine";
-import { buildSessionSlots, isSlotSelectable } from "../../utils/bookingAvailability";
-import { useDateAvailability } from "../../hooks/useDateAvailability";
-import { mockWorkingHoursConfig } from "../../services/mockWorkingHoursConfig";
-import { mockSalonProfile } from "../../services/mockSalonService";
-import { createBooking, SlotTakenError } from "../../services/bookingService";
-import { SessionKey } from "../../types/workingHours";
-import { BookedService } from "../../types/bookingRecord";
-// ASSUMPTION (see BookingAuthGate.tsx) — adjust path if your AuthContext differs.
-import { useAuth } from "../../contexts/AuthContext";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-// Afternoon removed: the salon's midday gap (2:00 PM–3:30 PM) is a lunch
-// break, not a bookable session — see services/mockWorkingHoursConfig.ts.
-const SESSION_ORDER: SessionKey[] = ["morning", "evening"];
-const SESSION_LABELS: Record<SessionKey, string> = {
+import {
+  useNavigate,
+} from "react-router-dom";
+
+import {
+  ArrowLeft,
+} from "lucide-react";
+
+import {
+  DateTabs,
+} from "../../components/Booking/DateTabs";
+
+import {
+  ServiceSelector,
+} from "../../components/Booking/ServiceSelector";
+
+import {
+  SessionSection,
+} from "../../components/Booking/SessionSection";
+
+import {
+  StickyContinueCTA,
+} from "../../components/Booking/StickyContinueCTA";
+
+import {
+  ContactDetailsModal,
+  type ContactDetailsSubmitPayload,
+} from "../../components/Booking/ContactDetailsModal";
+
+import {
+  ReviewBookingModal,
+} from "../../components/Booking/ReviewBookingModal";
+
+import {
+  useBookingAuthGate,
+} from "../../components/Booking/BookingAuthGate";
+
+import {
+  ResponsiveContainer,
+} from "../../components/layout/ResponsiveContainer";
+
+import {
+  getBookableDays,
+  type BookableDayKey,
+  formatDisplayDate,
+} from "../../utils/dateUtils";
+
+import {
+  to12h,
+} from "../../utils/slotGenerator";
+
+import {
+  getTotalDurationMinutes,
+} from "../../utils/serviceDurationEngine";
+
+import {
+  buildSessionSlots,
+  isSlotSelectable,
+} from "../../utils/bookingAvailability";
+
+import {
+  useDateAvailability,
+} from "../../hooks/useDateAvailability";
+
+import {
+  useSalonWorkingHours,
+} from "../../hooks/useSalonWorkingHours";
+
+import {
+  useClosureForDate,
+} from "../../hooks/useClosureForDate";
+
+import {
+  mockSalonProfile,
+} from "../../services/mockSalonService";
+
+import {
+  createBooking,
+  SlotTakenError,
+} from "../../services/bookingService";
+
+import type {
+  SessionKey,
+} from "../../types/workingHours";
+
+import type {
+  DayKey,
+} from "../../types/workingHours.types";
+
+import type {
+  BookedService,
+} from "../../types/bookingRecord";
+
+import {
+  useAuth,
+} from "../../contexts/AuthContext";
+
+/* ------------------------------------------------------------------
+   SESSION LABELS
+------------------------------------------------------------------- */
+
+const SESSION_LABELS: Record<
+  SessionKey,
+  string
+> = {
   morning: "Morning",
   evening: "Evening",
 };
 
-type ModalStage = "none" | "contact" | "review";
+/* ------------------------------------------------------------------
+   MODAL
+------------------------------------------------------------------- */
+
+type ModalStage =
+  | "none"
+  | "contact"
+  | "review";
+
+/* ------------------------------------------------------------------
+   IST CURRENT TIME
+------------------------------------------------------------------- */
+
+function currentMinutesIST(): number {
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-GB",
+      {
+        timeZone:
+          "Asia/Kolkata",
+        hour:
+          "2-digit",
+        minute:
+          "2-digit",
+        hourCycle:
+          "h23",
+      }
+    ).formatToParts(
+      new Date()
+    );
+
+  const hour =
+    Number(
+      parts.find(
+        (part) =>
+          part.type ===
+          "hour"
+      )?.value ?? "0"
+    );
+
+  const minute =
+    Number(
+      parts.find(
+        (part) =>
+          part.type ===
+          "minute"
+      )?.value ?? "0"
+    );
+
+  return (
+    hour * 60 +
+    minute
+  );
+}
+
+/* ------------------------------------------------------------------
+   BOOKING PAGE
+------------------------------------------------------------------- */
 
 export function BookingPage() {
-  const navigate = useNavigate();
-  const days = useMemo(() => getBookableDays(), []);
-  const [activeKey, setActiveKey] = useState<BookableDayKey>(days[0].key);
-  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
-  const [selectedTime, setSelectedTime] = useState<string | undefined>();
-  const [slotLostMessage, setSlotLostMessage] = useState<string | null>(null);
-  const { user, loading: authLoading } = useAuth();
-  const { status: authStatus, errorMessage: authError, ensureAuthenticated } = useBookingAuthGate();
-  const [modalStage, setModalStage] = useState<ModalStage>("none");
-  const [pendingContact, setPendingContact] = useState<ContactDetailsSubmitPayload | null>(null);
-  const [submitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  
+  const navigate =
+    useNavigate();
 
-  const activeDay = days.find((d) => d.key === activeKey)!;
-  const dayConfig = mockWorkingHoursConfig[activeDay.weekday];
-  const baseSlotIntervalMinutes = mockWorkingHoursConfig.baseSlotIntervalMinutes;
-
-  // Live availability, PII-free (see bookingService.ts) — updates instantly
-  // across tabs/devices, survives refresh (Firestore-backed, not memory).
-  const { occupiedSlots, loading: availabilityLoading, error: availabilityError } =
-    useDateAvailability(mockSalonProfile.salonId, activeDay.dateKey);
-
-  const selectedServices: BookedService[] = useMemo(
-    () =>
-      mockSalonProfile.services
-        .filter((s) => selectedServiceIds.includes(s.id))
-        .map((s) => ({
-          serviceId: s.id,
-          serviceName: s.name,
-          durationMinutes: s.durationMinutes,
-        })),
-    [selectedServiceIds]
-  );
-
-  const totalDurationMinutes = useMemo(
-    () =>
-      getTotalDurationMinutes(
-        mockSalonProfile.services.filter((s) => selectedServiceIds.includes(s.id))
-      ),
-    [selectedServiceIds]
-  );
-
-  const isToday = activeDay.key === "today";
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
-  const dateLabel = formatDisplayDate(activeDay.dateKey);
-  const timeLabel = selectedTime ? to12h(selectedTime) : "";
-  const servicesLabel = selectedServices.map((s) => s.serviceName).join(", ");
-
-  const handleDateChange = (key: BookableDayKey) => {
-    setActiveKey(key);
-    setSelectedTime(undefined);
-    setSubmitError(null);
-  };
-
-  const handleServiceToggle = (serviceId: string) => {
-    setSelectedServiceIds((prev) =>
-      prev.includes(serviceId) ? prev.filter((id) => id !== serviceId) : [...prev, serviceId]
+  const days =
+    useMemo(
+      () =>
+        getBookableDays(),
+      []
     );
-    setSelectedTime(undefined);
-    setSubmitError(null);
-  };
 
-  const sessionSlots = useMemo(() => {
-    if (dayConfig.isClosed) return [];
-    return SESSION_ORDER.map((sessionKey) => {
-      const session = dayConfig[sessionKey];
-      if (!session) return null;
-      return {
-        key: sessionKey,
-        slots: buildSessionSlots({
-          session,
-          baseSlotIntervalMinutes,
-          totalDurationMinutes,
-          occupiedSlots,
-          isToday,
-          nowMinutes,
-        }),
-      };
-    }).filter((s): s is { key: SessionKey; slots: ReturnType<typeof buildSessionSlots> } => !!s);
-  }, [dayConfig, baseSlotIntervalMinutes, totalDurationMinutes, occupiedSlots, isToday, nowMinutes]);
-
-  const selectedSlotStillValid = useMemo(() => {
-    if (!selectedTime) return false;
-    return sessionSlots.some((s) =>
-      s.slots.some((slot) => slot.time24 === selectedTime && isSlotSelectable(slot))
+  const [
+    activeKey,
+    setActiveKey,
+  ] =
+    useState<BookableDayKey>(
+      days[0].key
     );
-  }, [selectedTime, sessionSlots]);
 
-  // MULTI-TAB SYNC (Priority 6): the live `occupiedSlots` listener means this
-  // effect fires the instant another tab/device/customer takes the slot the
-  // user currently has selected — clears it, drops out of any open modal, and
-  // shows a message, so Continue can never be clicked through to a stale
-  // selection and Confirm can never be submitted against a slot that's
-  // already gone.
-  useEffect(() => {
-    if (!selectedTime) return;
-    if (selectedSlotStillValid) return;
+  const [
+    selectedServiceIds,
+    setSelectedServiceIds,
+  ] =
+    useState<string[]>([]);
 
-    setSlotLostMessage("That time is no longer available. Please choose another.");
-    setSelectedTime(undefined);
-    if (modalStage !== "none") {
-      setModalStage("none");
-      setPendingContact(null);
+  const [
+    selectedTime,
+    setSelectedTime,
+  ] =
+    useState<
+      string | undefined
+    >();
+
+  const [
+    slotLostMessage,
+    setSlotLostMessage,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  const {
+    user,
+    loading:
+      authLoading,
+  } =
+    useAuth();
+
+  const {
+    status:
+      authStatus,
+
+    errorMessage:
+      authError,
+
+    ensureAuthenticated,
+  } =
+    useBookingAuthGate();
+
+  const [
+    modalStage,
+    setModalStage,
+  ] =
+    useState<ModalStage>(
+      "none"
+    );
+
+  const [
+    pendingContact,
+    setPendingContact,
+  ] =
+    useState<
+      ContactDetailsSubmitPayload | null
+    >(null);
+
+  const [
+    submitting,
+  ] =
+    useState(false);
+
+  const [
+    submitError,
+    setSubmitError,
+  ] =
+    useState<
+      string | null
+    >(null);
+
+  /* ----------------------------------------------------------------
+     ACTIVE DATE
+  ---------------------------------------------------------------- */
+
+  const activeDay =
+    days.find(
+      (day) =>
+        day.key ===
+        activeKey
+    )!;
+
+  /* ----------------------------------------------------------------
+     LIVE WORKING HOURS
+  ---------------------------------------------------------------- */
+
+  const {
+    workingHours,
+    loading:
+      workingHoursLoading,
+    error:
+      workingHoursError,
+  } =
+    useSalonWorkingHours(
+      mockSalonProfile.salonId
+    );
+
+  const activeWeekday =
+    activeDay.weekday as DayKey;
+
+  const dayConfig =
+    workingHours?.[
+      activeWeekday
+    ] ?? null;
+
+  const baseSlotIntervalMinutes =
+    workingHours
+      ?.slotIntervalMinutes ??
+    15;
+
+  /* ----------------------------------------------------------------
+     LIVE SPECIAL CLOSURE
+  ---------------------------------------------------------------- */
+
+  const {
+    closures,
+    loading:
+      closureLoading,
+  } =
+    useClosureForDate(
+      mockSalonProfile.salonId,
+      activeDay.dateKey
+    );
+
+  /*
+   * Partial Special Closures are converted into
+   * blocked 15-minute times for the existing
+   * booking availability engine.
+   *
+   * Example:
+   *
+   * closure:
+   * 09:30 → 14:00
+   *
+   * blocked:
+   * 09:30
+   * 09:45
+   * 10:00
+   * ...
+   * 13:45
+   *
+   * 14:00 remains available.
+   */
+  const closureBlockedSlots =
+  useMemo(() => {
+    const blocked =
+      new Set<string>();
+
+    for (const closure of closures) {
+      if (
+        closure.type ===
+          "full_day" ||
+        !closure.startTime ||
+        !closure.endTime
+      ) {
+        continue;
+      }
+
+      const [
+        startHour,
+        startMinute,
+      ] =
+        closure.startTime
+          .split(":")
+          .map(Number);
+
+      const [
+        endHour,
+        endMinute,
+      ] =
+        closure.endTime
+          .split(":")
+          .map(Number);
+
+      const start =
+        startHour * 60 +
+        startMinute;
+
+      const end =
+        endHour * 60 +
+        endMinute;
+
+      if (
+        !Number.isFinite(
+          start
+        ) ||
+        !Number.isFinite(
+          end
+        ) ||
+        end <= start
+      ) {
+        continue;
+      }
+
+      for (
+        let minute = start;
+        minute < end;
+        minute +=
+          baseSlotIntervalMinutes
+      ) {
+        const hour =
+          Math.floor(
+            minute / 60
+          );
+
+        const mins =
+          minute % 60;
+
+        blocked.add(
+          `${String(
+            hour
+          ).padStart(
+            2,
+            "0"
+          )}:${String(
+            mins
+          ).padStart(
+            2,
+            "0"
+          )}`
+        );
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSlotStillValid]);
 
-  // AUTH EDGE CASE (Priority 7): logging out in another tab while a booking
-  // modal is open here must not leave a modal live with a now-stale customer
-  // identity — close everything and send the user back to a safe state.
-  const wasAuthenticatedRef = useRef(false);
+    return blocked;
+  }, [
+    closures,
+    baseSlotIntervalMinutes,
+  ]);
+
+  const fullDayClosure =
+  useMemo(
+    () =>
+      closures.find(
+        (closure) =>
+          closure.type ===
+          "full_day"
+      ) ?? null,
+    [closures]
+  );
+
+  /* ----------------------------------------------------------------
+     LIVE BOOKED / BLOCKED SLOT LOCKS
+  ---------------------------------------------------------------- */
+
+  const {
+    occupiedSlots,
+    loading:
+      availabilityLoading,
+    error:
+      availabilityError,
+  } =
+    useDateAvailability(
+      mockSalonProfile.salonId,
+      activeDay.dateKey
+    );
+
+  /* ----------------------------------------------------------------
+     SERVICES
+  ---------------------------------------------------------------- */
+
+  const selectedServices:
+    BookedService[] =
+    useMemo(
+      () =>
+        mockSalonProfile.services
+          .filter(
+            (service) =>
+              selectedServiceIds.includes(
+                service.id
+              )
+          )
+          .map(
+            (service) => ({
+              serviceId:
+                service.id,
+
+              serviceName:
+                service.name,
+
+              durationMinutes:
+                service.durationMinutes,
+            })
+          ),
+      [
+        selectedServiceIds,
+      ]
+    );
+
+  const totalDurationMinutes =
+    useMemo(
+      () =>
+        getTotalDurationMinutes(
+          mockSalonProfile.services.filter(
+            (service) =>
+              selectedServiceIds.includes(
+                service.id
+              )
+          )
+        ),
+      [
+        selectedServiceIds,
+      ]
+    );
+
+  /* ----------------------------------------------------------------
+     TODAY / CURRENT TIME
+  ---------------------------------------------------------------- */
+
+  const isToday =
+    activeDay.key ===
+    "today";
+
+  const nowMinutes =
+    currentMinutesIST();
+
+  /* ----------------------------------------------------------------
+     DISPLAY LABELS
+  ---------------------------------------------------------------- */
+
+  const dateLabel =
+    formatDisplayDate(
+      activeDay.dateKey
+    );
+
+  const timeLabel =
+    selectedTime
+      ? to12h(
+          selectedTime
+        )
+      : "";
+
+  const servicesLabel =
+    selectedServices
+      .map(
+        (service) =>
+          service.serviceName
+      )
+      .join(", ");
+
+  /* ----------------------------------------------------------------
+     DATE CHANGE
+  ---------------------------------------------------------------- */
+
+  const handleDateChange = (
+    key: BookableDayKey
+  ) => {
+    setActiveKey(key);
+
+    setSelectedTime(
+      undefined
+    );
+
+    setSubmitError(null);
+
+    setSlotLostMessage(
+      null
+    );
+  };
+
+  /* ----------------------------------------------------------------
+     SERVICE CHANGE
+  ---------------------------------------------------------------- */
+
+  const handleServiceToggle = (
+    serviceId: string
+  ) => {
+    setSelectedServiceIds(
+      (previous) =>
+        previous.includes(
+          serviceId
+        )
+          ? previous.filter(
+              (id) =>
+                id !==
+                serviceId
+            )
+          : [
+              ...previous,
+              serviceId,
+            ]
+    );
+
+    /*
+     * Service duration changes which
+     * starting slots remain valid.
+     */
+    setSelectedTime(
+      undefined
+    );
+
+    setSubmitError(null);
+
+    setSlotLostMessage(
+      null
+    );
+  };
+
+  /* ----------------------------------------------------------------
+     SESSION / SLOT GENERATION
+  ---------------------------------------------------------------- */
+
+  const sessionSlots =
+    useMemo(() => {
+      if (
+        !workingHours ||
+        !dayConfig ||
+        dayConfig.isClosed ||
+        !!fullDayClosure
+      ) {
+        return [];
+      }
+
+      const openTime =
+        dayConfig.openTime;
+
+      const closeTime =
+        dayConfig.closeTime;
+
+      if (
+        !openTime ||
+        !closeTime
+      ) {
+        return [];
+      }
+
+      const lunchStart =
+        workingHours
+          .lunchBreak
+          ?.start;
+
+      const lunchEnd =
+        workingHours
+          .lunchBreak
+          ?.end;
+
+      const sessions: {
+        key: SessionKey;
+        start: string;
+        end: string;
+      }[] = [];
+
+      /*
+       * MORNING:
+       *
+       * opening → lunch start
+       */
+      if (
+        lunchStart &&
+        openTime <
+          lunchStart &&
+        lunchStart <=
+          closeTime
+      ) {
+        sessions.push({
+          key:
+            "morning",
+
+          start:
+            openTime,
+
+          end:
+            lunchStart,
+        });
+      }
+
+      /*
+       * EVENING:
+       *
+       * lunch end → closing
+       */
+      if (
+        lunchEnd &&
+        lunchEnd <
+          closeTime &&
+        lunchEnd >=
+          openTime
+      ) {
+        sessions.push({
+          key:
+            "evening",
+
+          start:
+            lunchEnd,
+
+          end:
+            closeTime,
+        });
+      }
+
+      /*
+       * No valid lunch break:
+       * use entire opening period.
+       */
+      if (
+        sessions.length ===
+        0
+      ) {
+        sessions.push({
+          key:
+            "morning",
+
+          start:
+            openTime,
+
+          end:
+            closeTime,
+        });
+      }
+
+      return sessions.map(
+        ({
+          key,
+          start,
+          end,
+        }) => ({
+          key,
+
+          slots:
+            buildSessionSlots(
+              {
+                session: {
+                  start,
+                  end,
+                },
+
+                baseSlotIntervalMinutes,
+
+                totalDurationMinutes,
+
+                occupiedSlots,
+
+                /*
+                 * Special Closure occupancy.
+                 */
+                blockedSlots:
+                  closureBlockedSlots,
+
+                isToday,
+
+                nowMinutes,
+              }
+            ),
+        })
+      );
+    }, [
+      workingHours,
+      dayConfig,
+      fullDayClosure,
+      closureBlockedSlots,
+      baseSlotIntervalMinutes,
+      totalDurationMinutes,
+      occupiedSlots,
+      isToday,
+      nowMinutes,
+    ]);
+
+  /* ----------------------------------------------------------------
+     SELECTED SLOT VALIDATION
+  ---------------------------------------------------------------- */
+
+  const selectedSlotStillValid =
+    useMemo(() => {
+      if (!selectedTime) {
+        return false;
+      }
+
+      return sessionSlots.some(
+        (session) =>
+          session.slots.some(
+            (slot) =>
+              slot.time24 ===
+                selectedTime &&
+              isSlotSelectable(
+                slot
+              )
+          )
+      );
+    }, [
+      selectedTime,
+      sessionSlots,
+    ]);
+
+  /* ----------------------------------------------------------------
+     REAL-TIME SLOT LOSS
+  ---------------------------------------------------------------- */
+
   useEffect(() => {
-    if (user) {
-      wasAuthenticatedRef.current = true;
+    if (!selectedTime) {
       return;
     }
-    if (wasAuthenticatedRef.current && modalStage !== "none") {
-      setModalStage("none");
-      setPendingContact(null);
-      setSubmitError("You've been signed out. Please sign in again to continue booking.");
+
+    if (
+      selectedSlotStillValid
+    ) {
+      return;
     }
-    wasAuthenticatedRef.current = false;
-  }, [user, modalStage]);
 
-  const canContinue =
-    selectedServiceIds.length > 0 &&
-    selectedSlotStillValid &&
-    !availabilityLoading &&
-    !authLoading;
+    setSlotLostMessage(
+      "That time is no longer available. Please choose another."
+    );
 
-  const handleContinueClick = async () => {
-    if (!canContinue) return;
+    setSelectedTime(
+      undefined
+    );
 
-    // Bug 4 guard: only advance on a VERIFIED signed-in user. A cancelled
-    // popup returns false here, so no modal opens and no draft is created —
-    // the user stays put with Continue available for retry.
-    const authenticated = await ensureAuthenticated();
-    if (!authenticated) return;
+    if (
+      modalStage !==
+      "none"
+    ) {
+      setModalStage(
+        "none"
+      );
 
-    // Fresh idempotency key per NEW attempt — see utils/idempotency.ts. Not
-    // regenerated on a same-attempt retry (that would defeat the point).
-    setSlotLostMessage(null);
-    setModalStage("contact");
-  };
-
-  const handleContactReview = (payload: ContactDetailsSubmitPayload) => {
-    setPendingContact(payload);
-    setSubmitError(null);
-    setModalStage("review");
-  };
-
-  const bookingEndTime = useMemo(() => {
-  if (!selectedTime) return "";
-
-  const [hours, minutes] = selectedTime.split(":").map(Number);
-  const total = hours * 60 + minutes + totalDurationMinutes;
-
-  const endHours = Math.floor(total / 60);
-  const endMinutes = total % 60;
-
-  return `${String(endHours).padStart(2, "0")}:${String(endMinutes).padStart(2, "0")}`;
-}, [selectedTime, totalDurationMinutes]);
-
-
- const handleConfirmBooking = async () => {
-  if (!pendingContact || !selectedTime) return;
-
-  try {
-    const booking = await createBooking({
-      salonId: mockSalonProfile.salonId,
-salonName: mockSalonProfile.name,
-
-      customerId: user!.uid,
-      customerName: pendingContact.customerName,
-      customerEmail: user?.email ?? null,
-      customerPhone: pendingContact.customerPhone,
-
-      services: selectedServices.map((service) => ({
-  serviceId: service.serviceId,
-  serviceName: service.serviceName,
-  durationMinutes: service.durationMinutes,
-})),
-
-      totalDurationMinutes,
-      appointmentDate: activeDay.dateKey,
-      appointmentTime: selectedTime,
-      appointmentEndTime: bookingEndTime,
-      baseSlotIntervalMinutes: mockWorkingHoursConfig.baseSlotIntervalMinutes,
-    });
-
-    setModalStage("none");
-    setPendingContact(null);
-    navigate("/booking-confirmed", { state: booking });
-  } catch (err) {
-    if (err instanceof SlotTakenError) {
-      setSubmitError(err.message);
-      setSelectedTime(undefined);
-      setModalStage("none");
-    } else {
-      console.error("Booking creation failed:", err);
-      setSubmitError(
-        "Something went wrong creating your booking. Please try again."
+      setPendingContact(
+        null
       );
     }
-  }
-};
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedSlotStillValid,
+  ]);
+
+  /* ----------------------------------------------------------------
+     AUTH CROSS-TAB
+  ---------------------------------------------------------------- */
+
+  const wasAuthenticatedRef =
+    useRef(false);
+
+  useEffect(() => {
+    if (user) {
+      wasAuthenticatedRef.current =
+        true;
+
+      return;
+    }
+
+    if (
+      wasAuthenticatedRef.current &&
+      modalStage !==
+        "none"
+    ) {
+      setModalStage(
+        "none"
+      );
+
+      setPendingContact(
+        null
+      );
+
+      setSubmitError(
+        "You've been signed out. Please sign in again to continue booking."
+      );
+    }
+
+    wasAuthenticatedRef.current =
+      false;
+  }, [
+    user,
+    modalStage,
+  ]);
+
+  /* ----------------------------------------------------------------
+     CONTINUE
+  ---------------------------------------------------------------- */
+
+  const canContinue =
+    selectedServiceIds.length >
+      0 &&
+    selectedSlotStillValid &&
+    !availabilityLoading &&
+    !workingHoursLoading &&
+    !closureLoading &&
+    !authLoading;
+
+  const handleContinueClick =
+    async () => {
+      if (!canContinue) {
+        return;
+      }
+
+      const authenticated =
+        await ensureAuthenticated();
+
+      if (!authenticated) {
+        return;
+      }
+
+      setSlotLostMessage(
+        null
+      );
+
+      setModalStage(
+        "contact"
+      );
+    };
+
+  /* ----------------------------------------------------------------
+     CONTACT DETAILS
+  ---------------------------------------------------------------- */
+
+  const handleContactReview = (
+    payload:
+      ContactDetailsSubmitPayload
+  ) => {
+    setPendingContact(
+      payload
+    );
+
+    setSubmitError(
+      null
+    );
+
+    setModalStage(
+      "review"
+    );
+  };
+
+  /* ----------------------------------------------------------------
+     BOOKING END TIME
+  ---------------------------------------------------------------- */
+
+  const bookingEndTime =
+    useMemo(() => {
+      if (!selectedTime) {
+        return "";
+      }
+
+      const [
+        hours,
+        minutes,
+      ] =
+        selectedTime
+          .split(":")
+          .map(Number);
+
+      const total =
+        hours * 60 +
+        minutes +
+        totalDurationMinutes;
+
+      const endHours =
+        Math.floor(
+          total / 60
+        );
+
+      const endMinutes =
+        total % 60;
+
+      return `${String(
+        endHours
+      ).padStart(
+        2,
+        "0"
+      )}:${String(
+        endMinutes
+      ).padStart(
+        2,
+        "0"
+      )}`;
+    }, [
+      selectedTime,
+      totalDurationMinutes,
+    ]);
+
+  /* ----------------------------------------------------------------
+     CONFIRM BOOKING
+  ---------------------------------------------------------------- */
+
+  const handleConfirmBooking =
+    async () => {
+      if (
+        !pendingContact ||
+        !selectedTime ||
+        !user
+      ) {
+        return;
+      }
+
+      try {
+        const booking =
+          await createBooking(
+            {
+              salonId:
+                mockSalonProfile.salonId,
+
+              salonName:
+                mockSalonProfile.name,
+
+              customerId:
+                user.uid,
+
+              customerName:
+                pendingContact.customerName,
+
+              customerEmail:
+                user.email ??
+                null,
+
+              customerPhone:
+                pendingContact.customerPhone,
+
+              services:
+                selectedServices.map(
+                  (
+                    service
+                  ) => ({
+                    serviceId:
+                      service.serviceId,
+
+                    serviceName:
+                      service.serviceName,
+
+                    durationMinutes:
+                      service.durationMinutes,
+                  })
+                ),
+
+              totalDurationMinutes,
+
+              appointmentDate:
+                activeDay.dateKey,
+
+              appointmentTime:
+                selectedTime,
+
+              appointmentEndTime:
+                bookingEndTime,
+
+              baseSlotIntervalMinutes,
+            }
+          );
+
+        setModalStage(
+          "none"
+        );
+
+        setPendingContact(
+          null
+        );
+
+        navigate(
+          "/booking-confirmed",
+          {
+            state:
+              booking,
+          }
+        );
+      } catch (err) {
+        if (
+          err instanceof
+          SlotTakenError
+        ) {
+          setSubmitError(
+            err.message
+          );
+
+          setSelectedTime(
+            undefined
+          );
+
+          setModalStage(
+            "none"
+          );
+        } else {
+          console.error(
+            "Booking creation failed:",
+            err
+          );
+
+          setSubmitError(
+            "Something went wrong creating your booking. Please try again."
+          );
+        }
+      }
+    };
+
+  /* ----------------------------------------------------------------
+     UI
+  ---------------------------------------------------------------- */
 
   return (
     <div className="min-h-screen bg-[#1F2128] pb-28">
@@ -249,109 +1079,286 @@ salonName: mockSalonProfile.name,
         <header className="pt-5">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/")}
             className="flex items-center gap-1 text-sm font-medium text-[#B8BCC8]"
-            aria-label="Go back"
+            aria-label="Go back to salon"
           >
             <ArrowLeft size={18} />
             Back
           </button>
+
           <p className="mt-4 text-[0.75rem] leading-[1.4rem] font-medium uppercase tracking-wide text-[#B8BCC8]">
             BARB7 UNISEX SALON
           </p>
-          <h1 className="mt-1 text-xl font-bold text-[#F5F1EA]">Book Appointment</h1>
+
+          <h1 className="mt-1 text-xl font-bold text-[#F5F1EA]">
+            Book Appointment
+          </h1>
         </header>
 
-        <DateTabs days={days} activeKey={activeKey} onChange={handleDateChange} />
+        <DateTabs
+          days={days}
+          activeKey={
+            activeKey
+          }
+          onChange={
+            handleDateChange
+          }
+        />
 
         <div className="pt-2">
-          {dayConfig.isClosed ? (
+          {/* LOADING */}
+
+          {workingHoursLoading ||
+          closureLoading ? (
             <p className="mt-6 text-sm text-[#B8BCC8]">
-              Salon is closed on {activeDay.monthShort} {activeDay.dayNum}.
+              Loading availability...
             </p>
+          ) : !dayConfig ? (
+            /* MISSING WORKING HOURS */
+
+            <p className="mt-6 text-sm text-red-400">
+              Working hours are not available.
+            </p>
+          ) : dayConfig.isClosed ||
+              !!fullDayClosure ? (
+            /* FULL DAY CLOSED */
+
+            <div className="mt-6">
+              <p className="text-sm text-[#B8BCC8]">
+                Salon is closed on{" "}
+                {activeDay.monthShort}{" "}
+                {activeDay.dayNum}.
+              </p>
+
+              {fullDayClosure?.reason && (
+  <p className="mt-1 text-[12px] text-[#7F8491]">
+    {fullDayClosure.reason}
+  </p>
+)}
+            </div>
           ) : (
             <>
+              {/* SERVICES */}
+
               <ServiceSelector
-                services={mockSalonProfile.services}
-                selectedIds={selectedServiceIds}
-                totalDurationMinutes={totalDurationMinutes}
-                onToggle={handleServiceToggle}
+                services={
+                  mockSalonProfile.services
+                }
+                selectedIds={
+                  selectedServiceIds
+                }
+                totalDurationMinutes={
+                  totalDurationMinutes
+                }
+                onToggle={
+                  handleServiceToggle
+                }
               />
 
-              {selectedServiceIds.length === 0 ? (
-  <p className="mt-2 text-sm text-[#B8BCC8]">
-    Select at least one service to see available times.
-  </p>
-) : availabilityLoading ? (
-  <p className="mt-4 text-sm text-[#B8BCC8]">Loading available time slots...</p>
-) : (
-  sessionSlots.map(({ key, slots }) => (
-    <SessionSection
-      key={key}
-      title={SESSION_LABELS[key]}
-      slots={slots}
-      selectedTime={selectedTime}
-      onSelect={(time24) => {
-        setSelectedTime(time24);
-        setSubmitError(null);
-        setSlotLostMessage(null);
-      }}
-    />
-  ))
-)}
+              {/* SLOTS */}
+
+              {selectedServiceIds.length ===
+              0 ? (
+                <p className="mt-2 text-sm text-[#B8BCC8]">
+                  Select at least one service to see available times.
+                </p>
+              ) : availabilityLoading ? (
+                <p className="mt-4 text-sm text-[#B8BCC8]">
+                  Loading available time slots...
+                </p>
+              ) : (
+                sessionSlots.map(
+                  ({
+                    key,
+                    slots,
+                  }) => (
+                    <SessionSection
+                      key={
+                        key
+                      }
+                      title={
+                        SESSION_LABELS[
+                          key
+                        ]
+                      }
+                      slots={
+                        slots
+                      }
+                      selectedTime={
+                        selectedTime
+                      }
+                      onSelect={(
+                        time24
+                      ) => {
+                        setSelectedTime(
+                          time24
+                        );
+
+                        setSubmitError(
+                          null
+                        );
+
+                        setSlotLostMessage(
+                          null
+                        );
+                      }}
+                    />
+                  )
+                )
+              )}
             </>
           )}
 
+          {/* ERRORS / STATUS */}
+
           <div aria-live="polite">
+            {workingHoursError && (
+              <p className="mt-2 text-[0.75rem] leading-[1.4rem] text-red-400">
+                {
+                  workingHoursError
+                }
+              </p>
+            )}
+
             {slotLostMessage && (
-              <p className="mt-2 text-[0.75rem] leading-[1.4rem] text-red-400">{slotLostMessage}</p>
+              <p className="mt-2 text-[0.75rem] leading-[1.4rem] text-red-400">
+                {
+                  slotLostMessage
+                }
+              </p>
             )}
+
             {availabilityError && (
-              <p className="mt-2 text-[0.75rem] leading-[1.4rem] text-red-400">{availabilityError}</p>
+              <p className="mt-2 text-[0.75rem] leading-[1.4rem] text-red-400">
+                {
+                  availabilityError
+                }
+              </p>
             )}
-            {submitError && !["contact", "review"].includes(modalStage) && (
-  <div className="mt-2">
-    <p className="text-[0.75rem] leading-[1.4rem] text-red-400">{submitError}</p>
-  </div>
-)}
-            {authStatus === "error" && authError && (
-              <p className="mt-2 text-[0.75rem] leading-[1.4rem] text-red-400">{authError}</p>
-            )}
+
+            {submitError &&
+              ![
+                "contact",
+                "review",
+              ].includes(
+                modalStage
+              ) && (
+                <div className="mt-2">
+                  <p className="text-[0.75rem] leading-[1.4rem] text-red-400">
+                    {
+                      submitError
+                    }
+                  </p>
+                </div>
+              )}
+
+            {authStatus ===
+              "error" &&
+              authError && (
+                <p className="mt-2 text-[0.75rem] leading-[1.4rem] text-red-400">
+                  {
+                    authError
+                  }
+                </p>
+              )}
           </div>
         </div>
       </ResponsiveContainer>
 
+      {/* CONTINUE */}
+
       <StickyContinueCTA
-        enabled={canContinue}
-        loading={authStatus === "authenticating"}
-        onContinue={handleContinueClick}
+        enabled={
+          canContinue
+        }
+        loading={
+          authStatus ===
+          "authenticating"
+        }
+        onContinue={
+          handleContinueClick
+        }
       />
+
+      {/* CONTACT */}
 
       <ContactDetailsModal
-        open={modalStage === "contact"}
-        defaultName={user?.name ?? ""}
-        email={user?.email ?? null}
-        salonName={mockSalonProfile.name}
-        dateLabel={dateLabel}
-        timeLabel={timeLabel}
-        servicesLabel={servicesLabel}
-        onClose={() => setModalStage("none")}
-        onSubmit={handleContactReview}
+        open={
+          modalStage ===
+          "contact"
+        }
+        defaultName={
+          user?.name ??
+          ""
+        }
+        email={
+          user?.email ??
+          null
+        }
+        salonName={
+          mockSalonProfile.name
+        }
+        dateLabel={
+          dateLabel
+        }
+        timeLabel={
+          timeLabel
+        }
+        servicesLabel={
+          servicesLabel
+        }
+        onClose={() =>
+          setModalStage(
+            "none"
+          )
+        }
+        onSubmit={
+          handleContactReview
+        }
       />
 
+      {/* REVIEW */}
+
       <ReviewBookingModal
-  open={modalStage === "review"}
-  salonName={mockSalonProfile.name}
-  dateLabel={dateLabel}
-  timeLabel={timeLabel}
-  email={user?.email ?? null}
-  services={selectedServices}
-  contact={pendingContact}
-  submitting={submitting}
-  errorMessage={submitError}
-  onClose={() => setModalStage("none")}
-  onConfirm={handleConfirmBooking}
-/>
+        open={
+          modalStage ===
+          "review"
+        }
+        salonName={
+          mockSalonProfile.name
+        }
+        dateLabel={
+          dateLabel
+        }
+        timeLabel={
+          timeLabel
+        }
+        email={
+          user?.email ??
+          null
+        }
+        services={
+          selectedServices
+        }
+        contact={
+          pendingContact
+        }
+        submitting={
+          submitting
+        }
+        errorMessage={
+          submitError
+        }
+        onClose={() =>
+          setModalStage(
+            "none"
+          )
+        }
+        onConfirm={
+          handleConfirmBooking
+        }
+      />
     </div>
   );
 }
