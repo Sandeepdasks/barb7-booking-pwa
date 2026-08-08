@@ -46,7 +46,7 @@ export function getSlotEndTime(time24: string, durationMinutes: number): string 
 // earliest session start to latest session end. Owner-configurable: changing
 // any session window here updates the strip with zero component changes.
 export function getDayHoursLabel(day: DaySessions): string | null {
-  const sessions = [day.morning, day.afternoon, day.evening].filter(
+  const sessions = [day.morning, day.evening].filter(
     (s): s is SessionWindow => !!s
   );
   if (day.isClosed || sessions.length === 0) return null;
