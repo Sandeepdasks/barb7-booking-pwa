@@ -95,7 +95,7 @@ export function ContactDetailsModal({
 
           <div className="mt-6 flex flex-col gap-4">
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-[#B8BCC8]">
+              <label className="mb-1.5 block text-[0.75rem] leading-[1.4rem] font-medium text-[#B8BCC8]">
                 Services
               </label>
               <p className="rounded-xl border border-[#F5F1EA]/10 bg-[#1F2128]/60 px-3.5 py-3 text-sm text-[#B8BCC8]">
@@ -104,7 +104,7 @@ export function ContactDetailsModal({
             </div>
 
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-[#B8BCC8]">
+              <label className="mb-1.5 block text-[0.75rem] leading-[1.4rem] font-medium text-[#B8BCC8]">
                 Full Name
               </label>
               <input
@@ -118,7 +118,7 @@ export function ContactDetailsModal({
 
             {email && (
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-[#B8BCC8]">
+                <label className="mb-1.5 block text-[0.75rem] leading-[1.4rem] font-medium text-[#B8BCC8]">
                   Email
                 </label>
                 <input
@@ -131,7 +131,7 @@ export function ContactDetailsModal({
             )}
 
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-[#B8BCC8]">
+              <label className="mb-1.5 block text-[0.75rem] leading-[1.4rem] font-medium text-[#B8BCC8]">
                 Mobile Number
               </label>
               <input
@@ -144,7 +144,7 @@ export function ContactDetailsModal({
                 className="w-full rounded-xl border border-[#F5F1EA]/10 bg-[#1F2128] px-3.5 py-3 text-sm text-[#F5F1EA] placeholder:text-[#B8BCC8]/50 focus:border-[#C9A278] focus:outline-none"
               />
               {phone.length > 0 && !isPhoneValid && (
-                <p className="mt-1 text-xs text-red-400">Enter a valid 10-digit number.</p>
+                <p className="mt-1 text-[0.75rem] leading-[1.4rem] text-red-400">Enter a valid 10-digit number.</p>
               )}
             </div>
 

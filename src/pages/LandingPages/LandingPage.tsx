@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { mockSalonProfile, mockWorkingHours } from "../../services/mockSalonService";
-import { useWorkingHours } from "../../hooks/useWorkingHours";
+import { mockSalonProfile } from "../../services/mockSalonService";
 import { HeroSection } from "../../components/landing/HeroSection";
 import { AboutSection } from "../../components/landing/AboutSection";
 import { ServicesGrid } from "../../components/landing/ServicesGrid";
@@ -17,7 +16,6 @@ import { signOutUser } from "../../services/authService";
 // Swap mockSalonService for a real Firestore-backed hook later —
 // component tree below needs zero changes when that happens.
 export function LandingPage() {
-  const status = useWorkingHours(mockWorkingHours);
   const navigate = useNavigate();
   const { user } = useAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -55,12 +53,11 @@ export function LandingPage() {
     <div className="min-h-screen bg-[#1F2128] pb-28">
       <HeroSection
         salon={mockSalonProfile}
-        status={status}
         isAuthenticated={!!user}
         onLogout={handleLogoutIconClick}
       />
       <ResponsiveContainer>
-        <AboutSection salon={mockSalonProfile} status={status} />
+        <AboutSection salon={mockSalonProfile} />
         <ServicesGrid services={mockSalonProfile.services} />
       </ResponsiveContainer>
       <StickyBookCTA

@@ -1,11 +1,9 @@
 import { Star, MapPin, Phone, LogOut } from "lucide-react";
 import { SalonProfile } from "../../types/salon";
-import { TodayStatus } from "../../hooks/useWorkingHours";
 import { ResponsiveContainer } from "../layout/ResponsiveContainer";
 
 interface HeroSectionProps {
   salon: SalonProfile;
-  status: TodayStatus;
   isAuthenticated: boolean;
   onLogout: () => void;
 }
@@ -13,7 +11,11 @@ interface HeroSectionProps {
 // Hero content shares ResponsiveContainer's max-width/padding so it lines up
 // with About/Services on md/lg/xl — the cover image itself stays full-bleed,
 // only the overlay content is aligned.
-export function HeroSection({ salon, status, isAuthenticated, onLogout }: HeroSectionProps) {
+export function HeroSection({
+  salon,
+  isAuthenticated,
+  onLogout,
+}: HeroSectionProps) {
   return (
     <section className="relative h-[32vh] min-h-[260px] w-full overflow-hidden">
       <img
@@ -21,13 +23,12 @@ export function HeroSection({ salon, status, isAuthenticated, onLogout }: HeroSe
         alt={`${salon.name} interior`}
         className="absolute inset-0 h-full w-full object-cover"
       />
+
       {/* Cinematic dark gradient so overlay text stays legible on any photo */}
       <div className="absolute inset-0 bg-gradient-to-t from-[#1F2128] via-[#1F2128]/70 to-[#1F2128]/10" />
 
       <ResponsiveContainer className="absolute inset-0 flex h-full flex-col justify-between py-4">
-        {/* Top-right slot: Logout icon for signed-in users only. The
-            Open/Closed status moved down next to the salon name (below) —
-            this row is otherwise empty for signed-out visitors. */}
+        {/* Top-right slot: Logout icon for signed-in users only */}
         <div className="flex justify-end">
           {isAuthenticated && (
             <button
@@ -41,17 +42,8 @@ export function HeroSection({ salon, status, isAuthenticated, onLogout }: HeroSe
           )}
         </div>
 
-        {/* Hero content — lower-left, aligned to the shared container.
-            Status chip now sits directly above the salon name, left-aligned. */}
+        {/* Hero content */}
         <div className="flex flex-col gap-2">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[#1F2128]/80 px-3 py-1.5 text-[0.75rem] leading-[1.4rem] font-semibold text-[#F5F1EA] shadow-lg backdrop-blur-md">
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: status.isOpenNow ? "#22C55E" : "#EF4444" }}
-            />
-            {status.isOpenNow ? "Open now" : "Closed now"}
-          </span>
-
           <h1 className="text-2xl font-bold leading-tight text-[#F5F1EA]">
             {salon.name}
           </h1>
@@ -61,10 +53,12 @@ export function HeroSection({ salon, status, isAuthenticated, onLogout }: HeroSe
               <Star size={12} className="fill-[#C9A278] text-[#C9A278]" />
               {salon.rating.toFixed(1)}
             </span>
+
             <span className="inline-flex items-center gap-1">
               <MapPin size={12} />
               {salon.address}
             </span>
+
             <span className="inline-flex items-center gap-1">
               <Phone size={12} />
               {salon.phone}

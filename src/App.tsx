@@ -1,32 +1,124 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route, Outlet } from "react-router-dom";
+
 import { LandingPage } from "./pages/LandingPages/LandingPage";
 import { BookingPage } from "./pages/BookingPage";
 import { MyBookingsPage } from "./pages/MyBookingsPage";
 import { BookingConfirmedPage } from "./pages/BookingConfirmedPage";
-// ASSUMPTION (see BookingAuthGate.tsx) — adjust if your real AuthProvider
-// already wraps the app elsewhere, or lives at a different path.
-import { AuthProvider } from "./contexts/AuthContext";
-// Side-effect import: registers the email handler on the booking event bus
-// (services/notificationEvents.ts). Must load once at app startup.
-import "./services/notificationService";
+import { OwnerNotificationsPage } from "./pages/owner/OwnerNotificationsPage";
 
-// FLAG: no App.tsx existed in this sandbox, so this is a minimal router
-// covering only what this phase requires. If your real project's App.tsx
-// already has other routes (owner/admin dashboards, auth pages, etc. from
-// earlier phases), merge these four <Route> entries into it — don't overwrite.
-// This is also the fix for "No routes matched location /booking-confirmed":
-// that route simply didn't exist in the router before now.
-export default function App() {
+import { OwnerLoginPage } from "./pages/owner/OwnerLoginPage";
+import { OwnerDashboardPage } from "./pages/owner/OwnerDashboardPage";
+import { OwnerSchedulePage } from "./pages/owner/OwnerSchedulePage";
+import WorkingHoursSettingsPage from "./pages/owner/WorkingHoursSettingsPage";
+import { OwnerAddBookingPage } from "./pages/owner/OwnerAddBookingPage";
+import { OwnerSettingsPage } from "./pages/owner/OwnerSettingsPage";
+
+import { AuthProvider } from "./contexts/AuthContext";
+import {
+  OwnerAuthProvider,
+  useOwnerAuth,
+} from "./contexts/OwnerAuthContext";
+
+import { OwnerProtectedRoute } from "../routes/OwnerProtectedRoute";
+
+function CustomerAuthLayout() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/booking" element={<BookingPage />} />
-          <Route path="/my-bookings" element={<MyBookingsPage />} />
-          <Route path="/booking-confirmed" element={<BookingConfirmedPage />} />
-        </Routes>
-      </BrowserRouter>
+      <Outlet />
     </AuthProvider>
+  );
+}
+
+function OwnerAuthLayout() {
+  return (
+    <OwnerAuthProvider>
+      <Outlet />
+    </OwnerAuthProvider>
+  );
+}
+
+function OwnerEntryPage() {
+  const { ownerProfile, loading } = useOwnerAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
+  }
+
+  return ownerProfile ? <OwnerDashboardPage /> : <OwnerLoginPage />;
+}
+
+export default function App() {
+  return (
+    <Routes>
+      {/* =========================
+          CUSTOMER APP
+      ========================== */}
+      <Route element={<CustomerAuthLayout />}>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/booking" element={<BookingPage />} />
+        <Route path="/my-bookings" element={<MyBookingsPage />} />
+        <Route
+          path="/booking-confirmed"
+          element={<BookingConfirmedPage />}
+        />
+      </Route>
+
+      {/* =========================
+          OWNER PORTAL
+      ========================== */}
+      <Route element={<OwnerAuthLayout />}>
+        {/* Login when logged out / Dashboard when logged in */}
+        <Route path="/owner.html" element={<OwnerEntryPage />} />
+
+        <Route
+        path="/owner/notifications"
+        element={
+          <OwnerProtectedRoute>
+            <OwnerNotificationsPage />
+          </OwnerProtectedRoute>
+        }
+/>
+
+        <Route
+          path="/owner/bookings/new"
+          element={
+            <OwnerProtectedRoute>
+              <OwnerAddBookingPage />
+            </OwnerProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/owner/schedule"
+          element={
+            <OwnerProtectedRoute>
+              <OwnerSchedulePage />
+            </OwnerProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/owner/settings"
+          element={
+            <OwnerProtectedRoute>
+              <OwnerSettingsPage />
+            </OwnerProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/owner/settings/working-hours"
+          element={
+            <OwnerProtectedRoute>
+              <WorkingHoursSettingsPage />
+            </OwnerProtectedRoute>
+          }
+        />
+      </Route>
+    </Routes>
   );
 }

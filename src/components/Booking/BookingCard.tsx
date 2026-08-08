@@ -37,11 +37,11 @@ export function BookingCard({ booking, variant, onCancel, onBookAgain }: Booking
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-[#F5F1EA]">{booking.salonName}</p>
-          <p className="mt-1 text-xs text-[#B8BCC8]">
+          <p className="mt-1 text-[0.75rem] leading-[1.4rem] text-[#B8BCC8]">
             {formatDisplayDate(booking.appointmentDate)} ·{" "}
             {formatDisplayTimeRange(booking.appointmentTime, booking.appointmentEndTime)}
           </p>
-          <p className="mt-1 text-xs text-[#B8BCC8]">{serviceNames}</p>
+          <p className="mt-1 text-[0.75rem] leading-[1.4rem] text-[#B8BCC8]">{serviceNames}</p>
         </div>
         <span
           className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${STATUS_STYLES[booking.status]}`}
@@ -56,7 +56,7 @@ export function BookingCard({ booking, variant, onCancel, onBookAgain }: Booking
             <button
               type="button"
               onClick={onCancel}
-              className="w-full rounded-[10px] bg-[#1F2128] py-2 text-xs font-semibold text-[#F5F1EA]"
+              className="w-full rounded-[10px] bg-[#1F2128] py-2 text-[0.75rem] leading-[1.4rem] font-semibold text-[#F5F1EA]"
             >
               Cancel Booking
             </button>
@@ -75,7 +75,7 @@ export function BookingCard({ booking, variant, onCancel, onBookAgain }: Booking
           <button
             type="button"
             onClick={onBookAgain}
-            className="w-full rounded-[10px] bg-[#C9A278] py-2 text-xs font-semibold text-[#1F2128]"
+            className="w-full rounded-[10px] bg-[#C9A278] py-2 text-[0.75rem] leading-[1.4rem] font-semibold text-[#1F2128]"
           >
             Book Again
           </button>

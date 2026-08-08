@@ -20,13 +20,13 @@ export function BookingSummaryCard({
           <p className="text-[10px] font-medium uppercase tracking-wide text-[#B8BCC8]">
             Date
           </p>
-          <p className="mt-0.5 text-xs font-semibold text-[#F5F1EA]">{dateLabel}</p>
+          <p className="mt-0.5 text-[0.75rem] leading-[1.4rem] font-semibold text-[#F5F1EA]">{dateLabel}</p>
         </div>
         <div>
           <p className="text-[10px] font-medium uppercase tracking-wide text-[#B8BCC8]">
             Time
           </p>
-          <p className="mt-0.5 text-xs font-semibold text-[#F5F1EA]">{timeLabel || "—"}</p>
+          <p className="mt-0.5 text-[0.75rem] leading-[1.4rem] font-semibold text-[#F5F1EA]">{timeLabel || "—"}</p>
         </div>
       </div>
     </div>

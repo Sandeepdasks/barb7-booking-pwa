@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.10",
+    "@heroicons/react": "^2.2.0",
     "canvas-confetti": "^1.9.4",
     "firebase": "^10.13.0",
     "lucide-react": "^1.27.0",

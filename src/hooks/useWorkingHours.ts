@@ -1,37 +1,60 @@
-import { useMemo } from "react";
-import { WorkingHours, Weekday, DayHours } from "../types/salon";
-import { formatDisplayTimeRange } from "../utils/dateUtils";
+import { useCallback, useEffect, useState } from 'react';
+import { subscribeWorkingHours, saveWorkingHours } from '../services/workingHoursService';
+import { DEFAULT_WORKING_HOURS } from '../constants/workingHours.constants';
+import type { WorkingHours, WorkingHoursDraft } from '../types/workingHours.types';
 
-const WEEKDAYS: Weekday[] = [
-  "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
-];
-
-export interface TodayStatus {
-  today: DayHours;
-  isOpenNow: boolean;
-  displayHours: string; // e.g. "9:00 AM – 9:00 PM"
+interface UseWorkingHoursResult {
+  workingHours: WorkingHours | WorkingHoursDraft | null;
+  loading: boolean;
+  error: string | null;
+  saving: boolean;
+  save: (wh: WorkingHoursDraft) => Promise<void>;
 }
 
-// NOTE: uses client Date only for display/status on this read-only landing page.
-// Real booking-window enforcement always happens server-side (Cloud Functions) per 01-Requirements.
-export function useWorkingHours(workingHours: WorkingHours): TodayStatus {
-  return useMemo(() => {
-    const now = new Date();
-    const dayKey = WEEKDAYS[now.getDay()];
-    const today = workingHours[dayKey];
+/**
+ * Owner-side hook. Subscribes in real time to workingHours/{salonId}.
+ * If no doc exists yet, seeds UI with DEFAULT_WORKING_HOURS (not written
+ * until owner explicitly saves).
+ */
+export function useWorkingHours(salonId: string): UseWorkingHoursResult {
+  const [workingHours, setWorkingHours] = useState<WorkingHours | WorkingHoursDraft | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-    const [openH, openM] = today.openTime.split(":").map(Number);
-    const [closeH, closeM] = today.closeTime.split(":").map(Number);
-    const minutesNow = now.getHours() * 60 + now.getMinutes();
-    const openMinutes = openH * 60 + openM;
-    const closeMinutes = closeH * 60 + closeM;
+  useEffect(() => {
+    if (!salonId) return;
+    setLoading(true);
+    const unsubscribe = subscribeWorkingHours(
+      salonId,
+      (wh) => {
+        setWorkingHours(wh ?? DEFAULT_WORKING_HOURS);
+        setLoading(false);
+        setError(null);
+      },
+      (err) => {
+        setError(err.message);
+        setLoading(false);
+      }
+    );
+    return () => unsubscribe();
+  }, [salonId]);
 
-    const isOpenNow = !today.isClosed && minutesNow >= openMinutes && minutesNow < closeMinutes;
+  const save = useCallback(
+    async (wh: WorkingHoursDraft) => {
+      setSaving(true);
+      setError(null);
+      try {
+        await saveWorkingHours(salonId, wh);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to save working hours');
+        throw err;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [salonId]
+  );
 
-    return {
-      today,
-      isOpenNow,
-      displayHours: formatDisplayTimeRange(today.openTime, today.closeTime),
-    };
-  }, [workingHours]);
+  return { workingHours, loading, error, saving, save };
 }

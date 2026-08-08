@@ -9,36 +9,93 @@ service cloud.firestore {
                          request.auth.uid == userId;
     }
 
-    // Customer bookings
+    // Add inside existing `match /databases/{database}/documents { ... }`,
+// alongside the workingHours rule from the Milestone-2 delivery.
+// Same ASSUMED role/salonId check pattern — adjust to match your actual rules.
+
+match /specialClosures/{closureId} {
+  // Public read — customer app needs this to resolve availability, same
+  // reasoning as workingHours (booking screen may be viewed pre-login).
+  allow read: if true;
+
+  // Only the owner of this closure's salon can write. closureId is
+  // `{salonId}_{date}` so we check the resource/request data's own
+  // salonId field rather than parsing the doc ID.
+  allow create: if request.auth != null
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner'
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == request.resource.data.salonId;
+
+  allow update, delete: if request.auth != null
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'owner'
+    && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == resource.data.salonId;
+}
+
+
+    // Bookings
     match /bookings/{bookingId} {
 
-      // A customer can read only their own bookings
+      // Customer can read only their own bookings
       allow read: if request.auth != null &&
                   resource.data.customerId == request.auth.uid;
 
-      // A customer can create only bookings for themselves
+      // Customer can create only bookings for themselves
       allow create: if request.auth != null &&
                     request.resource.data.customerId == request.auth.uid;
 
-      // A customer can update only their own booking
+      // Customer can update only their own booking
       allow update: if request.auth != null &&
                     resource.data.customerId == request.auth.uid;
 
-      // Prevent direct deletion from the client
+      // Owner can read bookings that belong to their salon
+      allow read: if request.auth != null &&
+                  exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                  get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner" &&
+                  get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == resource.data.salonId;
+
+      // Owner can update bookings that belong to their salon
+      allow update: if request.auth != null &&
+                    exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner" &&
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == resource.data.salonId;
+
+      // Prevent direct deletion
       allow delete: if false;
     }
 
-    // Availability locks (PII-free)
-    match /slotLocks/{lockId} {
-
-      // Anyone can read availability
+    // Slot locks
+    match /slotLocks/{doc} {
       allow read: if true;
 
-      // Allow authenticated users to create/update/delete slot locks
-      // because the current app writes slotLocks directly from the client
+      // Customer booking flow can create a lock
       allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null;
+
+      // Owners can read slot locks for their salon
+      allow read: if request.auth != null &&
+                  exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                  get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner";
+
+      // No updates/deletes from client
+      allow update, delete: if false;
+    }
+
+    // Working hours
+    match /workingHours/{salonId} {
+      allow read: if true;
+
+      allow write: if request.auth != null &&
+                   exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner" &&
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == salonId;
+    }
+
+    // Salons
+    match /salons/{salonId} {
+      allow read: if true;
+
+      allow write: if request.auth != null &&
+                   exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "owner" &&
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.salonId == salonId;
     }
 
     // Default deny
