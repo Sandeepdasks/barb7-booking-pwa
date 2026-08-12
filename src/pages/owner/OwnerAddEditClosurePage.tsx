@@ -9,6 +9,10 @@ import {
 } from 'react-router-dom';
 
 import {
+  Switch,
+} from '@headlessui/react';
+
+import {
   useOwnerAuth,
 } from '@/contexts/OwnerAuthContext';
 
@@ -29,8 +33,6 @@ import {
   StickyActionBar,
 } from '@/components/owner/ui';
 
-import { Switch } from '@headlessui/react';
-
 /* ------------------------------------------------------------------
    TODAY — IST
 ------------------------------------------------------------------- */
@@ -39,13 +41,26 @@ function todayIST(): string {
   return new Intl.DateTimeFormat(
     'en-CA',
     {
-      timeZone:
-        'Asia/Kolkata',
+      timeZone: 'Asia/Kolkata',
     }
-  ).format(
-    new Date()
-  );
+  ).format(new Date());
 }
+
+/* ------------------------------------------------------------------
+   SHARED INPUT STYLE
+------------------------------------------------------------------- */
+
+const inputClass = [
+  'box-border block h-12',
+  'w-full min-w-0 max-w-full',
+  'rounded-xl border border-[#2B3240]',
+  'bg-[#1C2230]',
+  'px-3',
+  'text-[15px] text-[#F5F5F5]',
+  'focus:border-[#C8A06B]',
+  'focus:outline-none',
+  '[color-scheme:dark]',
+].join(' ');
 
 /* ------------------------------------------------------------------
    PAGE
@@ -63,7 +78,7 @@ export function OwnerAddEditClosurePage() {
     }>();
 
   const isEdit =
-    !!closureId;
+    Boolean(closureId);
 
   const {
     ownerProfile,
@@ -87,10 +102,6 @@ export function OwnerAddEditClosurePage() {
             closureId
         )
       : undefined;
-
-  /* ----------------------------------------------------------------
-     FORM STATE
-  ---------------------------------------------------------------- */
 
   const [
     date,
@@ -135,7 +146,7 @@ export function OwnerAddEditClosurePage() {
     useState(false);
 
   /* ----------------------------------------------------------------
-     LOAD EXISTING CLOSURE
+     EDIT MODE
   ---------------------------------------------------------------- */
 
   useEffect(() => {
@@ -164,9 +175,7 @@ export function OwnerAddEditClosurePage() {
       existing.endTime ??
         '14:00'
     );
-  }, [
-    existing,
-  ]);
+  }, [existing]);
 
   /* ----------------------------------------------------------------
      VALIDATION
@@ -266,9 +275,16 @@ export function OwnerAddEditClosurePage() {
           }
         />
       }
+
       footer={
         <StickyActionBar>
-          <div className="flex gap-3">
+          <div
+            className="grid w-full min-w-0 gap-3"
+            style={{
+              gridTemplateColumns:
+                'minmax(0, 1fr) minmax(0, 1fr)',
+            }}
+          >
             <OwnerButton
               variant="secondary"
               fullWidth
@@ -300,10 +316,13 @@ export function OwnerAddEditClosurePage() {
         </StickyActionBar>
       }
     >
-      <div className="flex flex-col gap-4">
-        {/* DATE */}
+      <div className="flex w-full min-w-0 max-w-full flex-col gap-4 overflow-hidden">
 
-        <label className="block">
+        {/* ----------------------------------------------------------
+            DATE
+        ----------------------------------------------------------- */}
+
+        <label className="block w-full min-w-0 max-w-full">
           <span className="mb-1.5 block text-[13px] text-[#A7AAB4]">
             Date
           </span>
@@ -323,18 +342,22 @@ export function OwnerAddEditClosurePage() {
                 event.target.value
               )
             }
-            className={[
-              'h-12 w-full rounded-xl border border-[#2B3240]',
-              'bg-[#1C2230] px-3 text-[15px] text-[#F5F5F5]',
-              'focus:border-[#C8A06B] focus:outline-none',
-              '[color-scheme:dark]',
-            ].join(' ')}
+            className={inputClass}
+            style={{
+              width: '100%',
+              minWidth: 0,
+              maxWidth: '100%',
+              boxSizing:
+                'border-box',
+            }}
           />
         </label>
 
-        {/* REASON */}
+        {/* ----------------------------------------------------------
+            REASON
+        ----------------------------------------------------------- */}
 
-        <label className="block">
+        <label className="block w-full min-w-0 max-w-full">
           <span className="mb-1.5 block text-[13px] text-[#A7AAB4]">
             Reason
           </span>
@@ -353,61 +376,103 @@ export function OwnerAddEditClosurePage() {
             }
             placeholder="e.g. Independence Day"
             className={[
-              'h-12 w-full rounded-xl border border-[#2B3240]',
-              'bg-[#1C2230] px-3 text-[15px] text-[#F5F5F5]',
+              inputClass,
               'placeholder:text-[#6E7482]',
-              'focus:border-[#C8A06B] focus:outline-none',
             ].join(' ')}
           />
         </label>
 
-        {/* ALL DAY TOGGLE */}
+        {/* ----------------------------------------------------------
+            ALL DAY
+        ----------------------------------------------------------- */}
 
         <div
-  className={[
-    'flex min-h-[74px] items-center justify-between gap-4',
-    'rounded-2xl border border-[#2B3240] bg-[#151922]',
-    'px-4 py-4',
-  ].join(' ')}
->
-  <span className="min-w-0 flex-1 text-[14px] leading-5 text-[#F5F5F5]">
-    Close shop for the entire day
-  </span>
+          className={[
+            'flex w-full min-w-0 max-w-full',
+            'min-h-[72px]',
+            'items-center justify-between gap-4',
+            'box-border',
+            'rounded-2xl',
+            'border border-[#2B3240]',
+            'bg-[#151922]',
+            'px-4 py-4',
+          ].join(' ')}
+        >
+          <span
+            className={[
+              'min-w-0 flex-1',
+              'text-[14px]',
+              'leading-5',
+              'text-[#F5F5F5]',
+            ].join(' ')}
+          >
+            Close shop for the entire day
+          </span>
 
-  <Switch
-    checked={allDay}
-    onChange={setAllDay}
-    className={[
-      'relative inline-flex h-[28px] w-[48px] shrink-0 cursor-pointer items-center rounded-full',
-      'transition-colors duration-200 ease-in-out',
-      'focus:outline-none',
-      allDay
-        ? 'bg-[#C8A06B]'
-        : 'bg-[#2B3240]',
-    ].join(' ')}
-  >
-    <span className="sr-only">
-      Close shop for the entire day
-    </span>
+          <Switch
+            checked={
+              allDay
+            }
+            onChange={
+              setAllDay
+            }
+            className={[
+              'relative inline-flex',
+              'h-[28px] w-[48px]',
+              'shrink-0',
+              'cursor-pointer',
+              'items-center',
+              'rounded-full',
+              'transition-colors',
+              'duration-200',
+              'focus:outline-none',
 
-    <span
-      aria-hidden="true"
-      className={[
-        'pointer-events-none inline-block h-[22px] w-[22px] rounded-full bg-[#F5F5F5]',
-        'shadow-sm transition-transform duration-200 ease-in-out',
-        allDay
-          ? 'translate-x-[23px]'
-          : 'translate-x-[3px]',
-      ].join(' ')}
-    />
-  </Switch>
-</div>
+              allDay
+                ? 'bg-[#C8A06B]'
+                : 'bg-[#2B3240]',
+            ].join(' ')}
+          >
+            <span className="sr-only">
+              Close shop for the entire day
+            </span>
 
-        {/* PARTIAL CLOSURE TIMES */}
+            <span
+              aria-hidden="true"
+              className={[
+                'pointer-events-none',
+                'block',
+                'h-[22px]',
+                'w-[22px]',
+                'rounded-full',
+                'bg-[#F5F5F5]',
+                'shadow-sm',
+                'transition-transform',
+                'duration-200',
+
+                allDay
+                  ? 'translate-x-[23px]'
+                  : 'translate-x-[3px]',
+              ].join(' ')}
+            />
+          </Switch>
+        </div>
+
+        {/* ----------------------------------------------------------
+            PARTIAL CLOSURE
+        ----------------------------------------------------------- */}
 
         {!allDay && (
-          <div className="flex items-end gap-3">
-            <label className="min-w-0 flex-1">
+          <div
+            className="grid w-full min-w-0 max-w-full gap-3 overflow-hidden"
+            style={{
+              gridTemplateColumns:
+                'minmax(0, 1fr) minmax(0, 1fr)',
+            }}
+          >
+
+            {/* FROM */}
+
+            <label className="block min-w-0 max-w-full overflow-hidden">
               <span className="mb-1.5 block text-[13px] text-[#A7AAB4]">
                 From
               </span>
@@ -424,16 +489,35 @@ export function OwnerAddEditClosurePage() {
                     event.target.value
                   )
                 }
-                className={[
-                  'h-12 w-full rounded-xl border border-[#2B3240]',
-                  'bg-[#1C2230] px-3 text-[15px] text-[#F5F5F5]',
-                  'focus:border-[#C8A06B] focus:outline-none',
-                  '[color-scheme:dark]',
-                ].join(' ')}
+                className={inputClass}
+                style={{
+                  display:
+                    'block',
+
+                  width:
+                    '100%',
+
+                  minWidth:
+                    0,
+
+                  maxWidth:
+                    '100%',
+
+                  boxSizing:
+                    'border-box',
+
+                  WebkitAppearance:
+                    'none',
+
+                  appearance:
+                    'none',
+                }}
               />
             </label>
 
-            <label className="min-w-0 flex-1">
+            {/* TO */}
+
+            <label className="block min-w-0 max-w-full overflow-hidden">
               <span className="mb-1.5 block text-[13px] text-[#A7AAB4]">
                 To
               </span>
@@ -450,12 +534,29 @@ export function OwnerAddEditClosurePage() {
                     event.target.value
                   )
                 }
-                className={[
-                  'h-12 w-full rounded-xl border border-[#2B3240]',
-                  'bg-[#1C2230] px-3 text-[15px] text-[#F5F5F5]',
-                  'focus:border-[#C8A06B] focus:outline-none',
-                  '[color-scheme:dark]',
-                ].join(' ')}
+                className={inputClass}
+                style={{
+                  display:
+                    'block',
+
+                  width:
+                    '100%',
+
+                  minWidth:
+                    0,
+
+                  maxWidth:
+                    '100%',
+
+                  boxSizing:
+                    'border-box',
+
+                  WebkitAppearance:
+                    'none',
+
+                  appearance:
+                    'none',
+                }}
               />
             </label>
           </div>
@@ -464,3 +565,5 @@ export function OwnerAddEditClosurePage() {
     </OwnerPageShell>
   );
 }
+
+export default OwnerAddEditClosurePage;
